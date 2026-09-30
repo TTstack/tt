@@ -30,8 +30,8 @@ func (v Engine) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(v))
 }
 func (v *Engine) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := decodeValue(data, &s); err != nil {
+	s, err := decodeUnitVariant(data)
+	if err != nil {
 		return err
 	}
 	next := Engine(s)
@@ -64,8 +64,8 @@ func (v Storage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(v))
 }
 func (v *Storage) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := decodeValue(data, &s); err != nil {
+	s, err := decodeUnitVariant(data)
+	if err != nil {
 		return err
 	}
 	next := Storage(s)
@@ -102,8 +102,8 @@ func (v VmState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(v))
 }
 func (v *VmState) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := decodeValue(data, &s); err != nil {
+	s, err := decodeUnitVariant(data)
+	if err != nil {
 		return err
 	}
 	next := VmState(s)
@@ -139,8 +139,8 @@ func (v EnvState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(v))
 }
 func (v *EnvState) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := decodeValue(data, &s); err != nil {
+	s, err := decodeUnitVariant(data)
+	if err != nil {
 		return err
 	}
 	next := EnvState(s)
@@ -173,8 +173,8 @@ func (v HostState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(v))
 }
 func (v *HostState) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := decodeValue(data, &s); err != nil {
+	s, err := decodeUnitVariant(data)
+	if err != nil {
 		return err
 	}
 	next := HostState(s)
@@ -207,8 +207,8 @@ func (v BackupBackend) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(v))
 }
 func (v *BackupBackend) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := decodeValue(data, &s); err != nil {
+	s, err := decodeUnitVariant(data)
+	if err != nil {
 		return err
 	}
 	next := BackupBackend(s)
@@ -242,8 +242,8 @@ func (v BackupAction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(v))
 }
 func (v *BackupAction) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := decodeValue(data, &s); err != nil {
+	s, err := decodeUnitVariant(data)
+	if err != nil {
 		return err
 	}
 	next := BackupAction(s)

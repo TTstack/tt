@@ -165,6 +165,12 @@ Acceptance
 
 ## Phase 4 — Agent
 
+Status: complete. [Validation evidence](validation/agent-2026-09-30.md) records
+native Rust/Go database and converter interchange, 174 HTTP cases, lifecycle and
+backup fault/retry tests, FreeBSD race/integration gates, and Go→Rust→Go agent
+service takeover against retained synthetic inventory. Real guests and the
+controller/CLI workflow remain later native acceptance work.
+
 Deliverables (`internal/agent`, `cmd/tt-agent`)
 
 - Runtime: create/start/stop/resize/destroy/reconcile with durable intent,

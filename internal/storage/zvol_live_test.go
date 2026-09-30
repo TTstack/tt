@@ -17,11 +17,11 @@ import (
 // The caller supplies a dedicated, quota-limited parent dataset. This test only
 // creates and removes its own UUID-named child, never an existing disk or parent.
 func TestNativeZvolBackupRestoreAndOwnership(t *testing.T) {
-	requireIntegration(t, "zfs")
 	parent := os.Getenv("TT_TEST_ZVOL_PARENT")
 	if parent == "" {
 		t.Skip("no dedicated ZFS parent supplied")
 	}
+	requireIntegration(t, "zfs")
 	ctx := context.Background()
 	dataset := parent + "/disk-" + uuid.NewString()
 	if _, err := zfsCommand(ctx, "create", "-V", "16M", "-o", "volmode=dev", dataset); err != nil {

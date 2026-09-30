@@ -29609,6 +29609,251 @@
       "output": null
     },
     {
+      "input": "{\"qemu\":null}",
+      "kind": "Engine",
+      "name": "unit-object",
+      "ok": true,
+      "output": "qemu"
+    },
+    {
+      "input": "{\"qemu\":true}",
+      "kind": "Engine",
+      "name": "unit-object-value",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"qemu\":null,\"extra\":null}",
+      "kind": "Engine",
+      "name": "unit-object-extra",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"qemu\":null,\"qemu\":null}",
+      "kind": "Engine",
+      "name": "unit-object-duplicate",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"unknown\":null}",
+      "kind": "Engine",
+      "name": "unit-object-unknown",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"file\":null}",
+      "kind": "Storage",
+      "name": "unit-object",
+      "ok": true,
+      "output": "file"
+    },
+    {
+      "input": "{\"file\":true}",
+      "kind": "Storage",
+      "name": "unit-object-value",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"file\":null,\"extra\":null}",
+      "kind": "Storage",
+      "name": "unit-object-extra",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"file\":null,\"file\":null}",
+      "kind": "Storage",
+      "name": "unit-object-duplicate",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"unknown\":null}",
+      "kind": "Storage",
+      "name": "unit-object-unknown",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"stopped\":null}",
+      "kind": "VmState",
+      "name": "unit-object",
+      "ok": true,
+      "output": "stopped"
+    },
+    {
+      "input": "{\"stopped\":true}",
+      "kind": "VmState",
+      "name": "unit-object-value",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"stopped\":null,\"extra\":null}",
+      "kind": "VmState",
+      "name": "unit-object-extra",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"stopped\":null,\"stopped\":null}",
+      "kind": "VmState",
+      "name": "unit-object-duplicate",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"unknown\":null}",
+      "kind": "VmState",
+      "name": "unit-object-unknown",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"active\":null}",
+      "kind": "EnvState",
+      "name": "unit-object",
+      "ok": true,
+      "output": "active"
+    },
+    {
+      "input": "{\"active\":true}",
+      "kind": "EnvState",
+      "name": "unit-object-value",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"active\":null,\"extra\":null}",
+      "kind": "EnvState",
+      "name": "unit-object-extra",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"active\":null,\"active\":null}",
+      "kind": "EnvState",
+      "name": "unit-object-duplicate",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"unknown\":null}",
+      "kind": "EnvState",
+      "name": "unit-object-unknown",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"online\":null}",
+      "kind": "HostState",
+      "name": "unit-object",
+      "ok": true,
+      "output": "online"
+    },
+    {
+      "input": "{\"online\":true}",
+      "kind": "HostState",
+      "name": "unit-object-value",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"online\":null,\"extra\":null}",
+      "kind": "HostState",
+      "name": "unit-object-extra",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"online\":null,\"online\":null}",
+      "kind": "HostState",
+      "name": "unit-object-duplicate",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"unknown\":null}",
+      "kind": "HostState",
+      "name": "unit-object-unknown",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"reflink\":null}",
+      "kind": "BackupBackend",
+      "name": "unit-object",
+      "ok": true,
+      "output": "reflink"
+    },
+    {
+      "input": "{\"reflink\":true}",
+      "kind": "BackupBackend",
+      "name": "unit-object-value",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"reflink\":null,\"extra\":null}",
+      "kind": "BackupBackend",
+      "name": "unit-object-extra",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"reflink\":null,\"reflink\":null}",
+      "kind": "BackupBackend",
+      "name": "unit-object-duplicate",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"unknown\":null}",
+      "kind": "BackupBackend",
+      "name": "unit-object-unknown",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"create\":null}",
+      "kind": "BackupAction",
+      "name": "unit-object",
+      "ok": true,
+      "output": "create"
+    },
+    {
+      "input": "{\"create\":true}",
+      "kind": "BackupAction",
+      "name": "unit-object-value",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"create\":null,\"extra\":null}",
+      "kind": "BackupAction",
+      "name": "unit-object-extra",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"create\":null,\"create\":null}",
+      "kind": "BackupAction",
+      "name": "unit-object-duplicate",
+      "ok": false,
+      "output": null
+    },
+    {
+      "input": "{\"unknown\":null}",
+      "kind": "BackupAction",
+      "name": "unit-object-unknown",
+      "ok": false,
+      "output": null
+    },
+    {
       "input": "{\"a\":\"<>&  é\\n\\t\\u0000\"}",
       "kind": "GuestConfig",
       "name": "full",

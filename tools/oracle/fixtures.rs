@@ -106,6 +106,15 @@ fn seed<T: DeserializeOwned + Serialize>(cases: &mut Vec<Value>,kind: &str, valu
         record::<T>(cases,kind,"unknown-invalid-surrogate",format!("{},\"future_extension\":\"\\ud800\"}}",&base[..base.len()-1]));
     }
 }
+fn enum_forms<T: DeserializeOwned + Serialize>(cases: &mut Vec<Value>, kind: &str, variant: &str) {
+    for (name, input) in [
+        ("unit-object", format!("{{\"{variant}\":null}}")),
+        ("unit-object-value", format!("{{\"{variant}\":true}}")),
+        ("unit-object-extra", format!("{{\"{variant}\":null,\"extra\":null}}")),
+        ("unit-object-duplicate", format!("{{\"{variant}\":null,\"{variant}\":null}}")),
+        ("unit-object-unknown", "{\"unknown\":null}".into()),
+    ] { record::<T>(cases, kind, name, input); }
+}
 fn main() {
     let mut cases=vec![];
     let mut state=backup::State::default();state.revision=TOKEN.into();
@@ -170,6 +179,13 @@ fn main() {
     for value in ["online","offline","unknown"] {wire!(HostState,"HostState",json!(value));}
     for value in ["zvol","reflink","unknown"] {wire!(backup::Backend,"BackupBackend",json!(value));}
     for value in ["create","restore","delete","unknown"] {wire!(backup::Action,"BackupAction",json!(value));}
+    enum_forms::<Engine>(&mut cases,"Engine","qemu");
+    enum_forms::<Storage>(&mut cases,"Storage","file");
+    enum_forms::<VmState>(&mut cases,"VmState","stopped");
+    enum_forms::<EnvState>(&mut cases,"EnvState","active");
+    enum_forms::<HostState>(&mut cases,"HostState","online");
+    enum_forms::<backup::Backend>(&mut cases,"BackupBackend","reflink");
+    enum_forms::<backup::Action>(&mut cases,"BackupAction","create");
     wire!(ttcore::guest_config::GuestConfig,"GuestConfig",json!({"a":"<>&\u{2028}\u{2029}é\n\t\u{0}"}));
     let digests=[BTreeMap::new(),BTreeMap::from([("a".into(),"<>&\u{2028}\u{2029}é\n\t\u{0}".into()),("z".into(),"\\\"".into())])].into_iter().map(|files|json!({"files":files,"digest":ttcore::guest_config::digest(&files),"canonical":serde_json::to_string(&files).unwrap()})).collect::<Vec<_>>();
     let lock=std::fs::read("Cargo.lock").expect("run from archived Rust workspace root");

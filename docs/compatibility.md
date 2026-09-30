@@ -72,7 +72,11 @@ required fields. Apply these rules in persistence as well as HTTP codecs.
 
 ### Enums
 
-JSON accepts **canonical lowercase names only**; aliases exist only in CLI parsing.
+JSON uses **canonical lowercase variant names only**; aliases exist only in CLI
+parsing. Serde unit enums also accept an externally tagged object with exactly one
+variant key and a null value, for example `{"qemu":null}`. Go accepts the same
+input and always serializes it as the canonical string. Non-null values, extra
+keys and duplicate variant keys remain invalid.
 CLI case folding is ASCII-only, matching Rust `to_ascii_lowercase`; Unicode lookalikes
 are not aliases.
 
@@ -313,9 +317,18 @@ at the API and filesystem boundary.
 | Downloads (image recipes, deployment helpers) | `curl` | Go HTTP client | fewer host prerequisites; same URLs, digests, atomically published files |
 | Firecracker API calls | `curl --unix-socket` | HTTP client over the Unix socket | same requests, same 5 s timeout |
 | CLI argument parsing | clap | standard `flag` + subcommand tree | dependency policy; help text and errors are written to match |
-| Error type | `ruc` strings | `error` + wrapping; flattened at HTTP boundary | idiomatic Go; the strings that cross the wire are identical |
+| Error diagnostics | `ruc` may decorate business errors with ANSI escapes, timestamps, PID/namespace and Rust source locations | Go contextual error text without that process-specific decoration | preserve stable business messages and status/prefix mapping; avoid fabricated Rust stack locations |
 | Async runtime | Tokio | goroutines/context | idiomatic Go |
 | SQLite driver | rusqlite (cgo, bundled) | modernc.org/sqlite (pure Go) | no cgo; behavior fixed by pragmas and fixture tests |
+
+Native phase-4 HTTP observation established that `ruc::Error::to_string()` can
+include a timestamp, process ID, ANSI styling and source location inside the
+JSON `error` string. These bytes vary across executions and build layouts. The
+Go port retains the stable business message and contextual causes, but omits
+that Rust diagnostic envelope. Differential tests explicitly normalize only this
+envelope when comparing business failures; they do not normalize protocol
+prefixes, status codes, JSON extractor errors or routing responses. This corrects
+the earlier plan's overly broad promise of identical error strings.
 
 Anything else that changes a JSON field, a status code, a printed line, a path or
 a host-visible name is a compatibility bug, not a design choice.
