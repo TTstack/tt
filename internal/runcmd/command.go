@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"time"
 )
 
@@ -47,12 +48,22 @@ func Output(ctx context.Context, cmd *exec.Cmd, timeout time.Duration) (Result, 
 	}
 	defer os.Remove(stdout.Name())
 	defer stdout.Close()
+	if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" {
+		if err := os.Remove(stdout.Name()); err != nil {
+			return result, err
+		}
+	}
 	stderr, err := os.CreateTemp("", "tt-stderr-*")
 	if err != nil {
 		return result, err
 	}
 	defer os.Remove(stderr.Name())
 	defer stderr.Close()
+	if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" {
+		if err := os.Remove(stderr.Name()); err != nil {
+			return result, err
+		}
+	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {

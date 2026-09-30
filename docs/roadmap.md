@@ -113,6 +113,11 @@ Acceptance
 
 ## Phase 2 — Storage and networking
 
+Status: complete. [Validation evidence](validation/storage-network-2026-09-30.md)
+records local gates, Rust rule fixtures, native FreeBSD race/ext4/ZFS checks and
+cleanup. Linux kernel networking and successful reflink recovery remain in the
+phase-7 native matrix; the unsupported-reflink contract is exercised on FreeBSD.
+
 Deliverables (`internal/storage`, `internal/netcfg`)
 
 - `ImageStore` with `file` and `zvol` backends: clone, remove, list, resolve,
