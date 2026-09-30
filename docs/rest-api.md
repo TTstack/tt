@@ -1,11 +1,12 @@
 # HTTP API
 
-The agent API is implemented in phase 4. The controller API remains planned;
-its routes are listed in [compatibility.md](compatibility.md#3-http-surface).
+Both agent and controller APIs are implemented through phase 5. Their complete
+route contracts are listed in [compatibility.md](compatibility.md#3-http-surface).
 Services use a shared bearer key when configured. There is no per-owner ACL.
 
-Successful responses use `{"ok":true,"data":...}`; actions without a result use
-`{"ok":true}`. Business failures use `{"ok":false,"error":"..."}`. JSON
+Successful responses use `{"ok":true,"data":...}`. Agent empty actions and
+controller host removal use `{"ok":true}`; controller environment actions use
+`{"ok":true,"data":null}`. Business failures use `{"ok":false,"error":"..."}`. JSON
 extractor failures are plain text, as in Axum. See the
 [compatibility contract](compatibility.md) for wire defaults and error diagnostics.
 
@@ -70,3 +71,28 @@ keeps its durable intent. Cleanup retains reservations and uses bounded backoff.
 Disk backup admission defaults to disabled and needs backend qualification.
 FreeBSD engine support remains experimental; successful API/state checks are not
 proof of guest boot or application readiness.
+
+## Controller coordination
+
+The controller stores native v5 state and migrates older versions by materializing
+backup revisions without dropping unknown VM fields. It exposes fleet status,
+host registration/removal/detach, environments, VM resource updates and backup
+forwarding. The exact `/` dashboard route is public; API routes use configured
+bearer authentication. Unknown URLs never fall through to the dashboard.
+
+Environment creation returns 202 after persisting the complete plan. A background
+worker contacts agents while holding only that environment's operation guard.
+Placement prefers eligible ZFS hosts for VM engines, then the least free memory
+that still fits; Docker placement is independent of VM storage. Pending plans and
+restart intents remain reserved against concurrent placement.
+
+Health refresh fetches at most eight hosts concurrently. A revision guard rejects
+snapshots overtaken by newer mutations; per-environment guards protect active
+operations. Missing VMs remain tracked and reserved. An unavailable agent retains
+its last observed inventory. Deletion and expiry forget a VM only after confirmed
+agent cleanup; failures leave an environment available for retry.
+
+Backup forwarding persists operation identity and staging reservations before the
+HTTP call. Lost responses retain intent; exact replay and sufficiently new settled
+observations resolve it. Resource-update retries follow the recorded target even
+after capability withdrawal. Network requests do not hold the fleet database mutex.

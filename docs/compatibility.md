@@ -120,7 +120,8 @@ separators, control escapes and multibyte text.
 
 Both services answer with the envelope `{"ok":true,"data":…}` or
 `{"ok":false,"error":"…"}`; `data`/`error` are omitted when absent; an empty
-success is exactly `{"ok":true}`. Malformed JSON may produce a non-envelope body
+success through `ApiRespEmpty::ok()` is exactly `{"ok":true}`. Controller
+environment delete/start/stop use `ApiResp::success(())` and include `"data":null`. Malformed JSON may produce a non-envelope body
 (same as the framework behavior in Rust); clients check both the status and `ok`.
 
 Controller routes (`crates/ctl/src/main.rs`):

@@ -236,3 +236,18 @@ func writeJSONRejection(w http.ResponseWriter, data []byte, status int, reason s
 	}
 	WriteText(w, status, fmt.Sprintf("%s%s at line %d column %d", prefix, reason, line, column))
 }
+
+// HeaderText matches HeaderValue::to_str for backup precondition headers.
+func HeaderText(headers http.Header, name string) *string {
+	values := headers.Values(name)
+	if len(values) == 0 {
+		return nil
+	}
+	value := values[0]
+	for _, b := range []byte(value) {
+		if b < 0x20 || b > 0x7e {
+			return nil
+		}
+	}
+	return &value
+}

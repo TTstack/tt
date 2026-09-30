@@ -196,6 +196,12 @@ Acceptance
 
 ## Phase 5 — Controller
 
+Status: complete. [Validation evidence](validation/controller-2026-09-30.md)
+records v5 database/migration interchange, scheduler and failure/retry workflows,
+52 native HTTP cases, exact dashboard content, shutdown draining and all four
+Go/Rust controller-agent service pairings on FreeBSD with synthetic inventory.
+CLI and real guest acceptance remain in phases 6–7.
+
 Deliverables (`internal/ctl`, `cmd/tt-ctl`)
 
 - Database v5 with migration and recovery read semantics.

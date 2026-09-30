@@ -216,22 +216,9 @@ func (s *Server) restoreBackup(w http.ResponseWriter, request *http.Request) {
 	}
 	s.backupRequest(w, request, model.BackupRestore, &body.Generation)
 }
-func headerText(headers http.Header, name string) *string {
-	values := headers.Values(name)
-	if len(values) == 0 {
-		return nil
-	}
-	value := values[0]
-	for _, b := range []byte(value) {
-		if b < 0x20 || b > 0x7e {
-			return nil
-		}
-	}
-	return &value
-}
 func (s *Server) backupRequest(w http.ResponseWriter, request *http.Request, action model.BackupAction, generation *string) {
 	id := request.PathValue("id")
-	identity, err := backup.FromHeaders(headerText(request.Header, "Idempotency-Key"), headerText(request.Header, "If-Match"), action, generation)
+	identity, err := backup.FromHeaders(api.HeaderText(request.Header, "Idempotency-Key"), api.HeaderText(request.Header, "If-Match"), action, generation)
 	if err != nil {
 		backupReply(w, api.BackupView{}, err)
 		return
