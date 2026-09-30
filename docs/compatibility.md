@@ -1,0 +1,253 @@
+# Compatibility contract with the Rust implementation
+
+This document is normative for the Go port. Where the Go code and this document
+disagree, one of them is a bug. Reference paths point into `../TTstack`.
+
+## 1. Scope
+
+Three surfaces must match exactly:
+
+1. **HTTP/JSON** — routes, methods, request and response documents, status codes.
+2. **Persistent state** — SQLite files, schema versions, `_meta` keys, on-disk
+   runtime artifacts.
+3. **Host-visible identifiers** — names shared with the kernel, the init system or
+   the filesystem that must survive a binary swap.
+
+The CLI's printed output and exit codes are part of the contract as well, because
+operators and scripts depend on them.
+
+## 2. JSON rules (serde → Go)
+
+serde has three behaviors that Go's `encoding/json` does not reproduce by default.
+Every wire struct must follow them:
+
+| serde attribute | Meaning | Go implementation |
+|---|---|---|
+| `#[serde(default)]` on a field | Missing input is allowed; the field's default is used | Acceptable by default; only relevant when input validation must reject absence |
+| `skip_serializing_if = "Option::is_none"` | Omitted from output when absent | `json:"name,omitempty"` on a pointer field |
+| `skip_serializing_if = "Vec::is_empty"` / `"BTreeMap::is_empty"` | Omitted from output when empty | `json:"name,omitempty"` on a slice/map field |
+| none of the above on `Option<T>` | Field is **always present**, `null` when absent | pointer field **without** `omitempty` |
+| none of the above on `Vec`/`BTreeMap` | Always present, `[]`/`{}` when empty | slice/map **without** `omitempty` |
+| `deny_unknown_fields` | Unknown input keys are an error | decode with `json.Decoder.DisallowUnknownFields()` |
+| `rename_all = "lowercase"` / `"snake_case"` | Enum/label spelling | custom `MarshalJSON`/`UnmarshalJSON` per enum |
+
+Fields that are **always present and nullable** today (they must not gain
+`omitempty`): `Host.error`, `Env.error`, `Vm.error`, `Pending.error`,
+`Receipt.error`, `Status.reason`, `Generation.*` scalars, `View.unsupported_reason`.
+Fields that are **omitted when absent**: `Host.capability_report`, `Vm.ssh`,
+`Vm.pending_resources`, `VmOptions.ssh`, `VmOptions.guest_config_digest`,
+`SshInfo.observation_error`, `AgentInfo.capability_report`, `AgentInfo.vms`,
+`ApiResp.data`, `ApiResp.error`, and every `Vec`/map that has an emptiness rule
+(`warnings`, `ssh_keys`, `guest_config`, `evidence`, `retired` is **not** skippable).
+When in doubt, read the field's attributes in `crates/core/src/model.rs`,
+`api.rs`, `capability.rs`, `backup.rs` and `ssh.rs`; those files are the source of
+truth, and each wire type gets a golden fixture in this repository.
+
+### Enums
+
+JSON accepts **canonical lowercase names only**; aliases exist only in CLI parsing.
+
+| Type | JSON values | CLI aliases (not JSON) |
+|---|---|---|
+| `Engine` | `qemu`, `firecracker`, `bhyve`, `docker`, `jail` | `kvm`→qemu, `fc`→firecracker, `podman`→docker, case-insensitive |
+| `Storage` | `file`, `zvol` | case-insensitive |
+| `VmState` | `running`, `stopped`, `paused`, `creating`, `failed`, `deleting` | — |
+| `EnvState` | `active`, `stopped`, `creating`, `deleting`, `failed` | — |
+| `HostState` | `online`, `offline` | — |
+| `Backend` | `zvol`, `reflink` | — |
+| `backup.Action` | `create`, `restore`, `delete` | — |
+
+An unknown value is a decode error — never a fallback. This matters for persisted
+records: a row containing an unknown engine is *unreadable*, not upgradable, and
+the strict reads (controller `get`/`list`) must fail while recovery reads skip the
+row with a log line.
+
+### Numbers and maps
+
+- Timestamps are Unix seconds as unsigned 64-bit integers; `expires_at: 0` means
+  "never".
+- MiB units for memory and disk; ports are unsigned 16-bit.
+- `port_map` is a JSON object with **string** keys (`{"22":20000}`) mapping guest
+  port → host port. Go: `map[string]uint16`; key order is irrelevant to JSON
+  semantics, but golden tests compare parsed values, not bytes, for maps.
+- Saturating arithmetic is preserved everywhere reservations are computed.
+
+## 3. HTTP surface
+
+Both services answer with the envelope `{"ok":true,"data":…}` or
+`{"ok":false,"error":"…"}`; `data`/`error` are omitted when absent; an empty
+success is exactly `{"ok":true}`. Malformed JSON may produce a non-envelope body
+(same as the framework behavior in Rust); clients check both the status and `ok`.
+
+Controller routes (`crates/ctl/src/main.rs`):
+
+| Method(s) | Path | Success |
+|---|---|---|
+| GET | `/` | dashboard HTML (public) |
+| GET | `/api/capabilities` | capability `Matrix` |
+| GET, POST | `/api/hosts` | `Host[]`; POST → 201 `Host` (200 on repeat) |
+| GET, DELETE | `/api/hosts/{id}` | `Host`; DELETE → empty |
+| POST | `/api/hosts/{id}/detach` | orphan `Vm[]` |
+| GET, POST | `/api/envs` | `Env[]`; POST → 202 `EnvDetail` |
+| GET, DELETE | `/api/envs/{id}` | `EnvDetail`; DELETE → empty |
+| POST | `/api/envs/{id}/stop`, `/start` | empty |
+| GET | `/api/vms/{id}` | `Vm` |
+| POST | `/api/vms/{id}/resources` | updated stopped `Vm` |
+| GET, PUT, DELETE | `/api/vms/{id}/backup` | `View` (+ `ETag: "<revision>"`) |
+| POST | `/api/vms/{id}/backup/restore` | `View` |
+| GET | `/api/images` | `ImageInfo[]` (online hosts) |
+| GET | `/api/status` | `FleetStatus` |
+
+Agent routes (`crates/agent/src/main.rs`): `GET /api/info`, `GET /api/images`,
+`GET|POST /api/vms`, `GET|DELETE /api/vms/{id}`, `POST /api/vms/{id}/stop|start`,
+`POST /api/vms/{id}/resources`, and the four backup routes.
+
+Status mapping (shared by both services):
+
+| Condition | Status |
+|---|---|
+| Validation, design/capability rejection, invalid resize values, unsupported backup | 400 |
+| Missing entity (`not found:`) | 404 |
+| Busy environment, duplicate name, limits, conflicts, insufficient capacity on resize | 409 |
+| Stale backup revision (`precondition:`) | 412 |
+| Unschedulable placement | 422 |
+| Missing backup precondition headers (`missing precondition:`) | 428 |
+| Agent failure, unknown outcome, incomplete cleanup | 502 |
+| Offline host during a mutation that needs it | 503 |
+| Creation accepted | 202 |
+| Agent creation capability rejection | 400 (agent) |
+| Other agent create/start/stop/delete errors | 500 (agent) |
+
+Backup mutations additionally carry `Idempotency-Key` (UUID) and `If-Match`
+(quoted revision UUID), and the agent answers with `X-TT-Backup-Settled` /
+`X-TT-Backup-Settled-Sequence` headers on failure when the writer has settled.
+The message-prefix → status table lives in `crates/core/src/backup.rs`
+(`error_status`) and is mirrored in `internal/backup`.
+
+Authentication: `Authorization: Bearer <key>`, scheme compared case-insensitively,
+token compared in constant time (length is not hidden). Missing/invalid → 401 with
+the standard envelope. No key configured → no authentication at all. There is no
+per-owner or per-environment authorization anywhere.
+
+## 4. Persistent state
+
+### Controller database (`ctl.db`)
+
+```sql
+CREATE TABLE _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE hosts (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+CREATE TABLE envs  (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+CREATE TABLE vms   (id TEXT PRIMARY KEY, env_id TEXT NOT NULL, host_id TEXT NOT NULL, data TEXT NOT NULL);
+CREATE INDEX idx_vms_env  ON vms(env_id);
+CREATE INDEX idx_vms_host ON vms(host_id);
+```
+
+- `_meta.schema_version` = `5`; a database with a **higher** version refuses to
+  open with the "upgrade TTstack first" error; `current < 5` runs the backup
+  migration (materialize a default `backup` object with a fresh UUID `revision`
+  for every VM row in one transaction; a single unparsable row aborts and leaves
+  the version untouched).
+- Pragmas: `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON`,
+  `busy_timeout=5000`.
+- Row payloads are the JSON documents described in §2 — field names and omission
+  rules included. Byte-identical serialization is not required (JSON object order
+  is not meaningful), but decoding a Rust-written row and re-encoding it must
+  produce a semantically identical document, and the golden tests assert that.
+
+### Agent database (`agent.db`)
+
+```sql
+CREATE TABLE _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE vms   (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+```
+
+- `_meta.schema_version` = `6`; a populated database with any other version is
+  rejected (no automatic migration from v5 — the offline converter exists for
+  that, see §5). `_meta` also holds `host_id`, `network_config` and
+  `container_runtime`.
+- Unreadable VM rows are retained, mark the inventory as corrupt, pin resource
+  reservations to capacity and disable admission.
+- Changing the persisted network configuration or container-runtime binding while
+  VM rows exist is refused.
+
+### Host paths and artifacts
+
+| Path | Content |
+|---|---|
+| `/home/ttstack/run` (`RUN_DIR`, fixed) | QEMU PID/monitor/seed files, Firecracker PID/socket/config/log/sandbox files, SSH seed scripts, bhyve/jail artifacts |
+| `<runtime-dir>/clone-<vm-id>` | per-VM clone (directory or dataset) |
+| `<runtime-dir>/.tt-backups/<vm>/<generation>/` | reflink backup: `owner`, `disk`, `ready.json` |
+| `<data-dir>/service.lock` | exclusive `flock`, mode 0600 |
+| `<data-dir>/backup-<vm-id>.lock` | backup writer lock |
+| `/opt/ttstack/etc/api-key` | shared deployment key, mode 0600 |
+
+ZFS names: base snapshot `@ttsnap`; backup snapshots `<disk>@ttbackup-<uuid>` with
+user property `ttstack:backup=<vm-id>:<uuid>`; Firecracker zvol layout keeps
+`vmlinux` in the parent dataset and the root filesystem in the `rootfs` child
+volume, symlinked as `rootfs.ext4` inside the clone.
+
+## 5. Identifiers that must match bit-exactly
+
+| Identifier | Rule |
+|---|---|
+| TAP name | `tt-` + first 12 hex digits of SipHash-1-3(zeros, `UTF8(vm_id) ‖ 0xff`); ≤15 chars |
+| Guest MAC | `02:54:a.b.c.d` from the guest IPv4 octets |
+| Bridge | `tt0`, address `10.10.0.1/16`; guest IPs `10.10.<i/254>.<i%254+1>` |
+| nftables | table `tt-nat` (chains `prerouting`, `postrouting`, `forward`, set `denylist`); isolation tables named from the TAP with `-`→`_`; SSH ingress table `ip tt-ssh` |
+| Firecracker jail | UID/GID `100000 + c*256 + d`; chroot `<image-parent>/.jailer/<binary>/<tap>/root`; cgroup `/sys/fs/cgroup/ttstack/<tap>`; socket `/fc-<tap>.sock` (<108 bytes) |
+| Docker container | `tt-<vm-id>` |
+| systemd units | `tt-ctl.service`, `tt-agent.service`, drop-in `90-ttstack-mounts.conf` |
+| CLI config | `~/.ttconfig`, two lines (`addr`, optional key), mode 0600 |
+
+Test vectors for the TAP name come from the Rust tests
+(`crates/core/src/net.rs`): `""→tt-6ea523c53def`, `"vm1"→tt-e9e453b4d5a5`,
+`"vm2"→tt-fc7c4d3fbec3`, `"83b7e95-test-vm"→tt-ab2cb9caf2f1`,
+`"long-id-abcdefghijklmnopqrstuvwxyz"→tt-75e5d7552606`.
+
+## 6. External commands and timeouts
+
+Command lines, file names and timeouts are part of the contract where they affect
+other software or the operator (for example the `nft` rule text, `zfs` snapshot
+names, `jailer` arguments, `qemu-system-x86_64` arguments and the Firecracker boot
+arguments). Defaults to preserve:
+
+| Item | Value |
+|---|---|
+| Bounded command | 300 s default; stdout/stderr captured up to 4 MiB each |
+| Agent/controller background loops | 15 s (reconcile, host refresh, image catalog), 60 s (expiry) |
+| Client timeouts | 5 s health, 30 s registration/backup inspection, 360 s mutations, 600 s CLI mutations |
+| Creation wait in the CLI | poll every 2 s, up to 600 s |
+| QEMU shutdown grace | 10 s (`system_powerdown`), then SIGTERM/SIGKILL |
+| Firecracker shutdown grace | 30 s after `SendCtrlAltDel`, then SIGTERM/SIGKILL |
+| Backup storage budget | 240 s per attempt, 60 s per command, 16 MiB headroom probe |
+| Port pool | 20000–65535 inclusive, at most 256 entries per VM, port 22 auto-added where the Rust version adds it |
+
+## 7. Deliberate deviations
+
+These are the only intentional departures. Each must preserve observable behavior
+at the API and filesystem boundary.
+
+| Area | Rust | Go | Why |
+|---|---|---|---|
+| Downloads (image recipes, deployment helpers) | `curl` | Go HTTP client | fewer host prerequisites; same URLs, digests, atomically published files |
+| Firecracker API calls | `curl --unix-socket` | HTTP client over the Unix socket | same requests, same 5 s timeout |
+| CLI argument parsing | clap | standard `flag` + subcommand tree | dependency policy; help text and errors are written to match |
+| Error type | `ruc` strings | `error` + wrapping; flattened at HTTP boundary | idiomatic Go; the strings that cross the wire are identical |
+| Async runtime | Tokio | goroutines/context | idiomatic Go |
+| SQLite driver | rusqlite (cgo, bundled) | modernc.org/sqlite (pure Go) | no cgo; behavior fixed by pragmas and fixture tests |
+
+Anything else that changes a JSON field, a status code, a printed line, a path or
+a host-visible name is a compatibility bug, not a design choice.
+
+## 8. How compatibility is verified
+
+1. **Golden JSON fixtures** per wire type, generated once from the Rust build and
+   stored under `internal/*/testdata`; Go tests decode, re-encode and compare.
+2. **Fixture databases**: a Rust-created `ctl.db` (v5) and `agent.db` (v6) are
+   opened, read, written and re-read by Go tests; schema versions, tables and
+   payloads must round-trip.
+3. **Identifier vectors**: TAP names, MAC addresses, IP allocation, digest and
+   command-line golden tests.
+4. **Cross-implementation runs** (phase 7, authorized hosts): Rust `tt-ctl` with a
+   Go `tt-agent`, and Go `tt-ctl` with a Rust `tt-agent`, plus a Go CLI against
+   both, on the same schema versions.

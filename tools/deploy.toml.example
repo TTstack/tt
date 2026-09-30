@@ -1,0 +1,61 @@
+# tt distributed deployment. See docs/plan.md and docs/architecture.md.
+# Copy to deploy.toml, edit, then run from the repository:
+#   ./bin/tt deploy dist deploy.toml
+# Requires SSH access and noninteractive sudo on targets (including root logins).
+# Deployment installs services; images and host registration are separate steps.
+# Sections are optional. Each included controller/agent requires host.
+# The format is identical to TTstack's tools/deploy.toml.example.
+
+[general]
+prefix      = "/opt/ttstack"     # Install path on target hosts
+user        = "ttstack"          # Controller service user; agents run as root
+release_dir = "./bin"            # LOCAL compiled binary directory
+# api_key = "your-secret-key"    # Shared by controller and all agents
+# If omitted: reuse deploy.toml.api-key, or import an existing service key,
+# otherwise generate one. Keep configuration/key files out of version control.
+
+[controller]
+host = "10.0.0.1"
+# ssh_user = "root"
+# ssh_port = 22
+# listen = "0.0.0.0:9200"
+# data_dir = "/home/ttstack/ctl" # Default: /home/<general.user>/ctl
+# A custom data_dir must already be writable by the controller service user.
+
+[[agents]]
+host = "10.0.0.2"
+# ssh_user = "root"
+# ssh_port = 22
+# listen = "0.0.0.0:9100"
+# host_id = "node-02"            # Omit to generate/persist an ID on first start
+# container_runtime = "docker"   # Or "podman"; persisted for this agent's inventory
+# enable_disk_backup = false     # Opt in only on eligible zvol/reflink storage
+# release_dir = "./bin-musl"     # LOCAL override; build for this host
+
+# Scheduling budgets, not measured usage. Leave capacity for the host OS.
+# Only CPU and memory accept 0 for auto-detection (all host cores/RAM).
+# cpu_total = 0
+# mem_total = 0                  # Integer MiB, e.g. 16384 = 16 GiB
+# disk_total = "200G"            # STRING: "204800" or "200G" = 200 GiB
+# Disk must be positive; it is not auto-detected or a container disk quota.
+
+# File storage: QEMU qcow2 files or Firecracker kernel/rootfs directories.
+# Docker uses its own image store regardless of this selection.
+# storage = "file"
+# image_dir = "/home/ttstack/images"    # Default: /home/<general.user>/images
+# runtime_dir = "/home/ttstack/runtime" # Default: /home/<general.user>/runtime
+# Agent database directory is /home/<general.user>/data.
+# Engine run files always use /home/ttstack/run, regardless of general.user.
+
+# Optional additional agent; uncomment only after preparing its ZFS datasets.
+# QEMU and Firecracker can use zvol; eligible ZFS hosts are preferred for VMs.
+# Deployment does not provision ZFS or import images.
+# [[agents]]
+# host = "10.0.0.3"
+# host_id = "zvol-node"
+# storage = "zvol"
+# image_dir = "tank/ttstack/images"   # Dataset name, not filesystem directory
+# runtime_dir = "tank/ttstack/runtime"
+# cpu_total = 4
+# mem_total = 8192
+# disk_total = "200G"
