@@ -42,6 +42,9 @@ func serveController(ctx context.Context, cfg Config, stderr io.Writer) int {
 	defer db.Close()
 	db.stderr = stderr
 	state := newServer(db, key)
+	work, stopWork := context.WithCancel(context.Background())
+	state.workCtx = work
+	defer stopWork()
 	state.stderr = stderr
 	reader, err := state.clientFactory(5 * time.Second)
 	if err != nil {
@@ -97,16 +100,19 @@ func serveController(ctx context.Context, cfg Config, stderr io.Writer) int {
 	select {
 	case <-ctx.Done():
 		fmt.Fprintln(stderr, "received shutdown signal")
-		stop()
 		_ = server.Shutdown(context.Background())
 		<-serving
 	case err := <-serving:
-		stop()
 		_ = server.Shutdown(context.Background())
 		if err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stderr, "Server error: %v\n", err)
 		}
 	}
+	// Graceful HTTP shutdown drains accepted foreground requests. Detached
+	// creation and expiry work then stops, matching the Rust runtime lifetime;
+	// its durable plans remain available for reconciliation after restart.
+	stop()
+	stopWork()
 	loops.Wait()
 	state.workers.Wait()
 	fmt.Fprintln(stderr, "tt-ctl shutting down")

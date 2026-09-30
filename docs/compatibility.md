@@ -229,7 +229,7 @@ CREATE TABLE vms   (id TEXT PRIMARY KEY, data TEXT NOT NULL);
 
 - `_meta.schema_version` = `6`; a populated database with any other version is
   rejected (no automatic migration from v5 — the offline converter exists for
-  that, see §5). `_meta` also holds `host_id`, `network_config` and
+  that; see [the upgrade procedure](deployment.md#upgrade-and-offline-v5-conversion)). `_meta` also holds `host_id`, `network_config` and
   `container_runtime`.
 - Unreadable VM rows are retained, mark the inventory as corrupt, pin resource
   reservations to capacity and disable admission.
@@ -241,7 +241,9 @@ An empty v5 inventory is still rejected. Existing v6 state with missing tables i
 not silently repaired. The writer uses a 5000 ms busy timeout and configures
 WAL/FULL after the schema gate; read-only snapshots use 2000 ms. The agent does
 not enable the controller's `foreign_keys=ON` pragma. Connection-local settings
-must be applied to each actual Go connection, not only once to a pool.
+must be applied to each actual Go connection, not only once to a pool. The offline
+converter and host-identity connection retain rusqlite 0.40.2’s default 5000 ms
+busy timeout as well.
 
 ### Host paths and artifacts
 
@@ -334,6 +336,10 @@ the earlier plan's overly broad promise of identical error strings.
 CLI debug and diagnostic formatting may differ from Rust, as authorized for this
 port; operation behavior, exit status, stable business prefixes and protocol
 fields remain contractual. Deployment diagnostics redact `TT_API_KEY=` lines.
+Go-native transport/storage/TOML diagnostic causes may also differ, including
+human-readable `host.error`, `env.error` and `vm.error` text. Stable business
+prefixes and status mapping remain exact. Header names are case-insensitive;
+canonical spellings in this document do not prescribe wire capitalization.
 CLI JSON maps with unsigned port keys retain numeric BTreeMap order. API clients
 disable redirects and automatic retries; Go uses a fresh HTTP/1 connection for
 each request to prevent transport replay of backup requests carrying idempotency
@@ -357,3 +363,38 @@ a host-visible name is a compatibility bug, not a design choice.
 4. **Cross-implementation runs** (phase 7, authorized hosts): Rust `tt-ctl` with a
    Go `tt-agent`, and Go `tt-ctl` with a Rust `tt-agent`, plus a Go CLI against
    both, on the same schema versions.
+
+## 9. Reviewed input, process and shutdown boundaries
+
+- `--` ends option/subcommand recognition. It can precede a leaf command's
+  positional value but cannot introduce another command. A lone `-` is a string
+  option value. Service resource/port flags use decimal unsigned integers,
+  including a leading `+`; Go's octal/hexadecimal flag syntax is not accepted.
+- Missing requirements are reported together in deterministic order. Parent help
+  and help-subcommand help are available; error wording/order need not reproduce
+  clap's cosmetic suggestions (see §7).
+- Non-UTF-8 PID/process metadata is an unknown identity, not evidence of exit.
+  Valid-text missing/stale PID metadata may still recover the exact process by
+  marker. The prepared Firecracker version marker uses Rust's ASCII whitespace
+  set, which excludes vertical tab.
+- Controller shutdown first drains foreground HTTP handlers, then cancels detached
+  creation/expiry waits while preserving durable plans and reservations. It waits
+  for its own workers to exit before releasing the database/state lock. The agent's
+  accepted-operation draining policy is unchanged. Client disconnection is distinct
+  from service shutdown; accepted work may continue after disconnection.
+- CLI runtime detection/pull, image inspection, `freebsd-version`, local deployment
+  helpers and `scp` retain the Rust call sites' absence of an elapsed-time limit.
+  SSH scripts remain bounded at 900 s; recipe conversion/population commands and
+  core host operations keep their existing explicit bounds. Uncapped CLI commands
+  still honor cancellation and the documented capture limit.
+- Firewall stdin and reflink qualification use open, unlinked scratch files.
+  Database compatibility means schema, pragmas, typed JSON values and recovery
+  semantics; it does not promise identical SQLite page files, DDL whitespace or
+  generic JSON key order/number spelling. Explicit digest inputs remain byte-exact.
+
+The FreeBSD memory-discovery command remains bounded at 300 s and uses the
+existing 8192 MiB fallback on failure; no guarantee of an indefinitely hung
+startup probe is made.
+
+The independent review and evidence are recorded in
+[audit-resolution-2026-09-30.md](validation/audit-resolution-2026-09-30.md).

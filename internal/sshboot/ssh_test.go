@@ -77,3 +77,25 @@ func TestGeneratesUniqueHostIdentityWithoutReturningItInMetadata(t *testing.T) {
 		t.Fatal("host identity reused", err)
 	}
 }
+
+func TestPreparedRootVersionUsesRustASCIIWhitespace(t *testing.T) {
+	directory := t.TempDir()
+	program := filepath.Join(directory, "debugfs")
+	payload := filepath.Join(directory, "version")
+	if err := os.WriteFile(program, []byte("#!/bin/sh\ncat \"$TT_TEST_VERSION_FILE\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", directory+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("TT_TEST_VERSION_FILE", payload)
+	for _, tc := range []struct {
+		value string
+		ok    bool
+	}{{"1", true}, {" \t\n\r\f1\f \t\n", true}, {"1\v", false}, {"\v1", false}, {"1\u00a0", false}, {"2", false}} {
+		if err := os.WriteFile(payload, []byte(tc.value), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := PreparedRootfs(context.Background(), "fixture.ext4"); (err == nil) != tc.ok {
+			t.Fatalf("%q: %v", tc.value, err)
+		}
+	}
+}

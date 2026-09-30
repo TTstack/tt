@@ -136,8 +136,8 @@ func TestUpgradePreservesDocumentedMountGuards(t *testing.T) {
 	}
 	calls := [][]string{}
 	d.execute = func(_ context.Context, cmd *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
-		if timeout <= 0 {
-			t.Fatal("missing timeout")
+		if timeout != 0 {
+			t.Fatal("local helper unexpectedly bounded", timeout)
 		}
 		calls = append(calls, cmd.Args)
 		return runcmd.Result{Stdout: []byte("active\n")}, nil
@@ -211,8 +211,12 @@ func TestDistributedDeploymentUsesStdinAndVerifiedUploads(t *testing.T) {
 			d := newDeployer(quietApplication())
 			imported, uploaded, verified, setup, cleaned := false, false, false, false, false
 			d.execute = func(_ context.Context, cmd *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
-				if timeout <= 0 {
-					t.Fatal("timeout")
+				wantTimeout := time.Duration(0)
+				if cmd.Args[0] == "ssh" {
+					wantTimeout = 900 * time.Second
+				}
+				if timeout != wantTimeout {
+					t.Fatal("deployment timeout drift", timeout, wantTimeout)
 				}
 				if strings.Contains(strings.Join(cmd.Args, " "), "fixture-key") {
 					t.Fatal("secret in argv")
@@ -278,5 +282,16 @@ func TestDistributedDeploymentUsesStdinAndVerifiedUploads(t *testing.T) {
 				t.Fatal(info.Mode())
 			}
 		})
+	}
+}
+
+func TestMalformedDeploymentHasOneParseContext(t *testing.T) {
+	for _, content := range []string{"[general", "general=1", "agents=[1]"} {
+		path := filepath.Join(t.TempDir(), "deploy.toml")
+		writeFixture(t, path, content)
+		err := newDeployer(quietApplication()).distributed(context.Background(), path)
+		if err == nil || strings.Count(err.Error(), "parse deploy.toml:") != 1 {
+			t.Fatal(content, err)
+		}
 	}
 }

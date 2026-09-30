@@ -96,3 +96,42 @@ Backup forwarding persists operation identity and staging reservations before th
 HTTP call. Lost responses retain intent; exact replay and sufficiently new settled
 observations resolve it. Resource-update retries follow the recorded target even
 after capability withdrawal. Network requests do not hold the fleet database mutex.
+
+## Request defaults and limits
+
+`POST /api/envs` requires a unique `id` and a nonempty `vms` array. `owner` is an
+optional label (empty by default; the CLI uses `$USER`), not authorization.
+Environment `ssh_keys` are merged with each VM's public keys. `lifetime` is Unix
+seconds from creation: default 21600, zero means no expiry, and longer values are
+allowed unless the resulting timestamp overflows. Expiry deletes disks/backups.
+
+| VM field | Default and contract |
+|---|---|
+| `image` | Required image name or container reference |
+| `engine` | `qemu`; canonical JSON names are `qemu`, `firecracker`, `docker`, `bhyve`, `jail` |
+| `cpu` | 2 vCPUs; explicitly supplied values must be positive |
+| `mem` | 1024 MiB guest RAM; explicitly supplied values must be positive |
+| `disk` | QEMU: 40960 MiB. Firecracker: base rootfs size when omitted. Omit for Docker/Jail/bhyve; bhyve reserves its image capacity |
+| `ports` | Empty list; at most 256 requested TCP port entries. Port 22 is added for QEMU/bhyve/Jail and managed SSH |
+| `deny_outgoing` | False; routed egress denial for QEMU/Firecracker/bhyve, independent of isolation |
+| `isolated_network` | False; Linux QEMU/Firecracker only |
+| `guest_config` | Empty object; Firecracker opaque files, subject to [configuration limits](guest-images.md#firecracker-guest-configuration) |
+| `ssh_keys` | Empty list of public-key strings, not local filenames |
+| `ssh` | Optional account/sudo settings; keys alone select root without extra sudo. See [SSH](ssh.md) |
+
+CPU/memory/disk request integers fit unsigned 32-bit values, ports fit unsigned
+16-bit values, and lifetime fits unsigned 64-bit. CLI aliases such as `kvm`, `fc`
+and `podman` are not additional canonical JSON engine names. Firecracker scheduling
+reserves 128 MiB beyond guest RAM and a 4 MiB configuration drive when needed;
+`Vm.disk` includes that drive, while a resource-update request's `disk` is root
+capacity only. Root disks cannot shrink. QEMU guest filesystem growth is separate.
+
+The 50-host and 1000-tracked-VM limits are guardrails, not validated fleet capacity.
+Resource totals/usage are configured capacities and reservations, not measured
+load or physical disk consumption. Failed or unknown operations retain their
+records and reservations until their lifecycle permits release. Docker/Jail disk
+usage is neither accounted nor quota-enforced by these fields.
+
+On controller shutdown, active HTTP handlers finish before detached creation and
+expiry waits are cancelled. Persisted plans remain for restart reconciliation;
+shutdown does not imply that a contacted agent cancelled its operation.

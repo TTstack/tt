@@ -25,7 +25,7 @@ type deployer struct {
 }
 
 func newDeployer(a *application) *deployer {
-	return &deployer{app: a, platform: runtime.GOOS, execute: runcmd.Output}
+	return &deployer{app: a, platform: runtime.GOOS, execute: toolOutput}
 }
 func (d *deployer) path(path string) string {
 	if d.root == "" {
@@ -34,7 +34,7 @@ func (d *deployer) path(path string) string {
 	return filepath.Join(d.root, strings.TrimPrefix(path, "/"))
 }
 func (d *deployer) output(ctx context.Context, name string, args ...string) (runcmd.Result, error) {
-	return d.execute(ctx, exec.Command(name, args...), runcmd.DefaultTimeout)
+	return d.execute(ctx, exec.Command(name, args...), 0)
 }
 func checkOutput(out runcmd.Result, action string) error {
 	if !out.Success() {

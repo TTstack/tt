@@ -12,15 +12,16 @@ maintained description of what is being built and why.
 | [Rust → Go mapping](mapping.md) | find where a Rust module or type lands in Go |
 | [Development](development.md) | build, test, lint and follow repository conventions |
 
-Feature guides and remaining documentation:
+Operator guides:
 
-| Document | Lands with |
+| Document | Scope |
 |---|---|
-| [Deployment](deployment.md) | Implemented in phase 6 |
-| [Guest images](guest-images.md) | Implemented in phase 6 |
-| [HTTP API](rest-api.md) | Implemented in phase 5 |
-| [Initial SSH](ssh.md) | Implemented; native acceptance tracked in phase 7 |
-| [Disk backup](disk-backup.md) | Implemented; native acceptance tracked in phase 7 |
+| [Deployment](deployment.md) | Prerequisites, service installation and offline upgrades |
+| [Guest images](guest-images.md) | Recipes, config drives, storage, recovery and networking |
+| [HTTP API](rest-api.md) | Routes, request defaults/limits and lifecycle |
+| [Initial SSH](ssh.md) | Accounts, image contract, ingress and readiness |
+| [Disk backup](disk-backup.md) | Qualification, stopped recovery points and exact replay |
+| [Capabilities](capabilities.md) | Design matrix, scoped host reports and legacy gates |
 
 ## Reading paths
 
@@ -43,7 +44,12 @@ preserve the observable contract.
 
 - [Shared-core parity, 2026-09-30](validation/shared-core-2026-09-30.md): Rust wire fixtures, bounded commands, native FreeBSD race/integration checks and limits.
 - [Storage/network parity, 2026-09-30](validation/storage-network-2026-09-30.md): Rust network fixtures, native FreeBSD file/ext4/ZFS tests, ownership and crash recovery.
-
+- [Engine parity](validation/engines-2026-09-30.md): command/configuration fixtures and ownership gates.
+- [Agent parity](validation/agent-2026-09-30.md): schema, HTTP, lifecycle and backup failure contracts.
+- [Controller parity](validation/controller-2026-09-30.md): scheduler, state interchange and service combinations.
+- [CLI parity](validation/cli-2026-09-30.md): output/request goldens, deployment and recipe tests.
 - [Feature coverage](validation/feature-coverage.md): every pinned README core behavior mapped to implementation/tests.
 - [Native FreeBSD acceptance](validation/freebsd-native-2026-09-30.md): real Jail/bhyve SSH, live swaps and zvol restore/replay.
 - [Native Linux acceptance](validation/linux-native-2026-09-30.md): QEMU/Firecracker file/zvol, mixed fleet/networking, Docker and isolated systemd deployment.
+
+- [Independent audit resolution](validation/audit-resolution-2026-09-30.md): reproduced defects, rejected claims and regression scope.

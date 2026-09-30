@@ -3,6 +3,7 @@ package cli
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -30,8 +31,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 func (a *application) run(args []string) int {
 	p, err := parse(args)
 	if err != nil {
-		if len(args) == 0 {
-			fmt.Fprint(a.stderr, helpText(""))
+		if errors.Is(err, errSubcommand) {
+			fmt.Fprint(a.stderr, helpText(p.path))
 			return 2
 		}
 		a.diagnostic("%v", err)

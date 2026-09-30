@@ -215,7 +215,7 @@ func (s *Server) ExpireOnce(ctx context.Context) {
 		go func(id string) {
 			slots <- struct{}{}
 			defer func() { <-slots; done <- struct{}{} }()
-			if err := s.deleteEnvironment(s.workCtx, id, true); err != nil {
+			if err := s.deleteEnvironment(s.workCtx, id, true); err != nil && s.workCtx.Err() == nil {
 				s.log("[ctl] cleanup %s: %s", id, err.Message)
 			}
 		}(env.ID)

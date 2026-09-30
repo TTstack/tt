@@ -7,3 +7,7 @@ env=dict(os.environ);env.pop('TT_API_KEY',None)
 for path in paths:
  result=subprocess.run([binary]+path.split()+['--help'],env=env,capture_output=True,check=True)
  (directory/((path.replace(' ','-') or 'root')+'.txt')).write_bytes(result.stdout)
+for parent in ['', 'host', 'env', 'env backup', 'image', 'deploy']:
+ result=subprocess.run([binary]+parent.split()+['help','help'],env=env,capture_output=True,check=True)
+ path=(parent+' help').strip()
+ (directory/(path.replace(' ','-')+'.txt')).write_bytes(result.stdout)

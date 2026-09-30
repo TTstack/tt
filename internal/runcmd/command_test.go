@@ -162,3 +162,35 @@ func TestBackupLockSurvivesParentTimeout(t *testing.T) {
 	}
 	t.Fatal("lock remained held after child exit", err)
 }
+
+func TestUnboundedOutputStillHonorsCancellation(t *testing.T) {
+	result, err := OutputUnbounded(context.Background(), exec.Command("sh", "-c", "sleep 0.02; printf ready"))
+	if err != nil || !result.Success() || string(result.Stdout) != "ready" {
+		t.Fatal(result, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ready := filepath.Join(t.TempDir(), "ready")
+	command := exec.Command("sh", "-c", "printf ready > \"$1\"; exec sleep 30", "fixture", ready)
+	done := make(chan error, 1)
+	go func() { _, err := OutputUnbounded(ctx, command); done <- err }()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(ready); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("child did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("uncapped command ignored cancellation")
+	}
+}

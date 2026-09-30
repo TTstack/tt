@@ -116,6 +116,13 @@ func TestBackupRequiresRegularDependenciesAndStableWitness(t *testing.T) {
 func TestReflinkUnsupportedNeverFallsBackAndSupportedRestoreKeepsSource(t *testing.T) {
 	requireIntegration(t)
 	c := testBackupContext(t.TempDir())
+	probeErr := ProbeReflink(c.Root)
+	if probeErr != nil && !strings.HasPrefix(probeErr.Error(), "backup unsupported:") {
+		t.Fatal(probeErr)
+	}
+	if entries, err := os.ReadDir(c.Root); err != nil || len(entries) != 0 {
+		t.Fatal("qualification left scratch entries", entries, err)
+	}
 	writeTestFile(t, c.Disk, []byte(strings.Repeat("A", 4096)))
 	lock, err := c.Lock()
 	if err != nil {
@@ -131,6 +138,9 @@ func TestReflinkUnsupportedNeverFallsBackAndSupportedRestoreKeepsSource(t *testi
 	pending := model.BackupPending{Request: model.BackupRequest{OperationID: uuid.NewString(), ExpectedRevision: uuid.NewString(), Action: model.BackupCreate}, Artifact: artifact, DiskIdentity: witness.DiskIdentity}
 	point, err := c.Create(context.Background(), lock, pending)
 	if err != nil {
+		if os.Getenv("TT_TEST_REQUIRE_REFLINK") == "1" {
+			t.Fatal("explicitly requested native reflink support is unavailable", err)
+		}
 		if !strings.HasPrefix(err.Error(), "backup unsupported:") {
 			t.Fatal(err)
 		}
@@ -154,6 +164,9 @@ func TestReflinkUnsupportedNeverFallsBackAndSupportedRestoreKeepsSource(t *testi
 		}
 		t.Log("strict reflink unavailable; rejection branch verified, supported restore remains unverified on this filesystem")
 		return
+	}
+	if probeErr != nil {
+		t.Fatal("anonymous qualification rejected a supported filesystem", probeErr)
 	}
 	writeTestFile(t, c.Disk, []byte(strings.Repeat("B", 4096)))
 	witness, err = c.Inspect(context.Background(), lock, false)

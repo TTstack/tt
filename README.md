@@ -96,6 +96,7 @@ unset TT_API_KEY
 sudo mkdir -p /home/ttstack/images
 sudo /opt/ttstack/bin/tt image create alpine-cloud
 tt host add 127.0.0.1:9100
+tt image list  # wait until alpine-cloud appears in the periodic catalog
 tt env create demo --image alpine-cloud --engine qemu \
   --cpu 1 --mem 256 --disk 2048 --ssh-key ~/.ssh/id_ed25519.pub
 tt env show demo

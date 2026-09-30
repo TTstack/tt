@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/TTstack/tt/internal/model"
 	"github.com/TTstack/tt/internal/runcmd"
@@ -169,5 +170,56 @@ func TestConversionDoesNotFollowOrReplaceDestinationSymlink(t *testing.T) {
 	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Fatal("link target created", err)
+	}
+}
+
+func TestOfflineConnectionsPreserveRusqliteBusyHandling(t *testing.T) {
+	for _, operation := range []string{"convert", "identity"} {
+		t.Run(operation, func(t *testing.T) {
+			source := v5Fixture(t, "5", false)
+			if operation == "identity" {
+				db, err := openDatabase(context.Background(), source, false, 5000)
+				if err != nil {
+					t.Fatal(err)
+				}
+				execute(t, db.conn, "DELETE FROM vms; UPDATE _meta SET value='6' WHERE key='schema_version'")
+				db.Close()
+			}
+			blocker, err := openDatabase(context.Background(), source, false, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer blocker.Close()
+			execute(t, blocker.conn, "BEGIN EXCLUSIVE")
+			defer blocker.conn.ExecContext(context.Background(), "ROLLBACK")
+			output := filepath.Join(filepath.Dir(source), "output.db")
+			done := make(chan error, 1)
+			started := make(chan struct{})
+			go func() {
+				close(started)
+				var err error
+				if operation == "convert" {
+					_, err = ConvertV5(context.Background(), source, output)
+				} else {
+					_, err = ResolveHostID(context.Background(), source, nil)
+				}
+				done <- err
+			}()
+			<-started
+			select {
+			case err := <-done:
+				t.Fatal("connection did not wait for the short external lock", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+			execute(t, blocker.conn, "ROLLBACK")
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("connection did not recover after lock release")
+			}
+		})
 	}
 }

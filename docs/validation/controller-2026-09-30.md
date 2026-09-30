@@ -36,8 +36,10 @@ with Cargo.lock SHA-256
   backup intent or overwrite a confirmed restore observation.
 - Concurrency tests cover a stalled deletion alongside another environment and
   heartbeat, accepted creation after client disconnect, and a confirmed stop
-  surviving a globally invalidated refresh. Shutdown drains accepted background
-  creation and retains the state lock until that work has completed.
+  surviving a globally invalidated refresh. The original phase-5 shutdown test
+  drained detached creation. The later [independent review](audit-resolution-2026-09-30.md)
+  corrected that policy to match Rust: drain foreground HTTP work, cancel detached
+  waits, retain durable plans and release the lock only after workers exit.
 
 ## Native FreeBSD service combinations
 

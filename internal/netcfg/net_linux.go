@@ -140,12 +140,11 @@ func (n *Network) DestroyTap(ctx context.Context, id string) error {
 	return err
 }
 func (n *Network) nft(ctx context.Context, rule string) error {
-	file, err := os.CreateTemp("", "tt-nft-*")
+	file, err := runcmd.AnonymousFile("", "tt-nft-*")
 	if err != nil {
 		return fmt.Errorf("nft input: %w", err)
 	}
 	defer file.Close()
-	defer os.Remove(file.Name())
 	if _, err := fmt.Fprintln(file, rule); err != nil {
 		return fmt.Errorf("write nft input: %w", err)
 	}

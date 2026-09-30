@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
+
+var errSubcommand = errors.New("a subcommand is required")
 
 type option struct {
 	short            string
@@ -139,7 +143,7 @@ func parse(args []string) (parsed, error) {
 				}
 				value = "true"
 			} else if !attached {
-				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				if i+1 >= len(args) || (args[i+1] != "-" && strings.HasPrefix(args[i+1], "-")) {
 					return result, fmt.Errorf("error: a value is required for '--%s' but none was supplied", name)
 				}
 				i++
@@ -164,12 +168,18 @@ func parse(args []string) (parsed, error) {
 		}
 		children, branch := commandChildren[result.path]
 		if branch {
+			if literal {
+				return result, fmt.Errorf("error: unexpected argument '%s' found", arg)
+			}
 			if arg == "help" && !literal {
 				for _, child := range args[i+1:] {
 					next := strings.TrimSpace(result.path + " " + child)
 					if _, ok := commandSpecs[next]; !ok {
 						if _, ok := commandChildren[next]; !ok {
-							return result, fmt.Errorf("error: unrecognized subcommand '%s'", child)
+							_, parent := commandChildren[result.path]
+							if child != "help" || !parent {
+								return result, fmt.Errorf("error: unrecognized subcommand '%s'", child)
+							}
 						}
 					}
 					result.path = next
@@ -190,26 +200,25 @@ func parse(args []string) (parsed, error) {
 		positionals = append(positionals, arg)
 	}
 	if _, branch := commandChildren[result.path]; branch {
-		return result, fmt.Errorf("error: a subcommand is required")
+		return result, errSubcommand
 	}
 	spec, ok := commandSpecs[result.path]
 	if !ok {
-		return result, fmt.Errorf("error: a subcommand is required")
+		return result, errSubcommand
 	}
 	if len(positionals) > 1 || (len(positionals) > 0 && spec.position == "") {
 		return result, fmt.Errorf("error: unexpected argument '%s' found", positionals[len(positionals)-1])
 	}
 	if len(positionals) == 1 {
 		result.argument = positionals[0]
-	} else if spec.position != "" && !spec.optionalPosition {
-		return result, fmt.Errorf("error: the following required arguments were not provided:\n  <%s>", spec.position)
 	} else if result.path == "deploy dist" {
 		result.argument = "deploy.toml"
 	}
+	missing := []string{}
 	for name, flag := range spec.flags {
 		if !result.has(name) {
 			if flag.required {
-				return result, fmt.Errorf("error: the following required arguments were not provided:\n  --%s <%s>", name, strings.ToUpper(strings.ReplaceAll(name, "-", "_")))
+				missing = append(missing, name)
 			}
 			if flag.fallback != "" {
 				result.values[name] = []string{flag.fallback}
@@ -217,7 +226,22 @@ func parse(args []string) (parsed, error) {
 		}
 	}
 	if strings.HasPrefix(result.path, "env backup ") && result.has("operation-id") != result.has("expected-revision") {
-		return result, fmt.Errorf("error: --operation-id and --expected-revision must be supplied together")
+		name := "operation-id"
+		if result.has(name) {
+			name = "expected-revision"
+		}
+		missing = append(missing, name)
+	}
+	sort.Strings(missing)
+	labels := make([]string, 0, len(missing)+1)
+	for _, name := range missing {
+		labels = append(labels, fmt.Sprintf("--%s <%s>", name, strings.ToUpper(strings.ReplaceAll(name, "-", "_"))))
+	}
+	if len(positionals) == 0 && spec.position != "" && !spec.optionalPosition {
+		labels = append(labels, "<"+spec.position+">")
+	}
+	if len(labels) > 0 {
+		return result, fmt.Errorf("error: the following required arguments were not provided:\n  %s", strings.Join(labels, "\n  "))
 	}
 	return result, nil
 }
