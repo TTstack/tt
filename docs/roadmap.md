@@ -54,6 +54,10 @@ host networking. Linux-only engines still need Linux validation after FreeBSD.
 
 ## Phase 0 — Repository skeleton
 
+Status: complete. Local Go 1.26.0 and 1.27.1 build/vet/test and CGo-disabled
+Linux/FreeBSD cross-build gates pass. All four help entries execute. Remote CI
+has not been run; the skeleton intentionally refuses functional operations.
+
 Deliverables
 
 - `go.mod` (module `github.com/TTstack/tt`, Go 1.26 minimum) with the four direct

@@ -30,3 +30,12 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Local build and validation artifacts
+/bin/
+/.local/
+*.db
+*.db-shm
+*.db-wal
+*.api-key
+/deploy.toml

@@ -50,7 +50,7 @@ not mean SQLite has no transitive dependencies. Use versions compatible with Go
 
 | Module | Use |
 |---|---|
-| `modernc.org/sqlite` | SQLite driver (pure Go, no cgo) |
+| `modernc.org/sqlite` | SQLite driver (pure Go, no cgo); selected to avoid a C toolchain |
 | `github.com/google/uuid` | UUID v4 identifiers |
 | `github.com/BurntSushi/toml` | `deploy.toml` parsing |
 | `golang.org/x/sys/unix` | `flock`, TUN ioctls, `FICLONE`, `statfs` |

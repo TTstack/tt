@@ -5,8 +5,9 @@
 containers across a small fleet of hosts. Workloads are grouped into environments,
 have a lifetime, and can be stopped, restarted, resized and deleted.
 
-This repository is a work in progress. The current state is **documentation only**;
-implementation lands in phases described in [docs/roadmap.md](docs/roadmap.md).
+This repository is a work in progress. **Phase 0 provides build tooling and command-line skeletons**. The binaries
+currently expose help/version only and refuse service startup; implementation
+continues in phases described in [docs/roadmap.md](docs/roadmap.md).
 
 ## Why Go
 
@@ -63,20 +64,21 @@ only, manual setup, limited validation).
 
 ## Building
 
-Requires Go 1.26 or newer. The module, Makefile and CI workflow land with
-phase 0 ([roadmap](docs/roadmap.md)); until then this repository contains
-documentation only.
+Requires Go 1.26 or newer. Builds use four direct Go modules, including the
+pure-Go `modernc.org/sqlite` driver. Release and cross-builds disable CGo.
 
 ```bash
 make build     # debug binaries in ./bin
 make release   # optimized binaries
 make test      # unit tests
 make lint      # gofmt check, go vet
+make cross     # compile Linux/amd64 and FreeBSD/amd64 without CGo
 ```
 
 ## Quick start (single Linux/systemd host)
 
-The workflow mirrors the Rust release. See [docs/plan.md](docs/plan.md) and the
+The following is the target workflow; it becomes executable with phase 6.
+It mirrors the Rust release. See [docs/plan.md](docs/plan.md) and the
 phase-6 deployment documentation that lands with the CLI
 ([roadmap](docs/roadmap.md)).
 
