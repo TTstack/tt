@@ -2,23 +2,113 @@
 package cli
 
 import (
-	_ "embed"
-	"flag"
+	"embed"
+	"fmt"
 	"io"
-	"os"
+	"strings"
 
 	"github.com/TTstack/tt/internal/commandline"
 )
 
-//go:embed help.txt
-var help string
+//go:embed help/*.txt
+var helpFiles embed.FS
 
+func helpText(path string) string {
+	name := strings.ReplaceAll(path, " ", "-")
+	if name == "" {
+		name = "root"
+	}
+	data, err := helpFiles.ReadFile("help/" + name + ".txt")
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
 func Run(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("tt", flag.ContinueOnError)
-	var server, apiKey string
-	fs.StringVar(&server, "server", "", "Controller address")
-	fs.StringVar(&server, "s", "", "Controller address")
-	fs.StringVar(&apiKey, "api-key", os.Getenv("TT_API_KEY"), "API key for controller authentication")
-	fs.StringVar(&apiKey, "k", os.Getenv("TT_API_KEY"), "API key for controller authentication")
-	return commandline.Stub(fs, args, help, stdout, stderr)
+	return newApplication(stdout, stderr).run(args)
+}
+func (a *application) run(args []string) int {
+	p, err := parse(args)
+	if err != nil {
+		if len(args) == 0 {
+			fmt.Fprint(a.stderr, helpText(""))
+			return 2
+		}
+		a.diagnostic("%v", err)
+		for _, line := range strings.Split(helpText(p.path), "\n") {
+			if strings.HasPrefix(line, "Usage:") {
+				a.diagnostic("\n%s\n\nFor more information, try '--help'.", line)
+				break
+			}
+		}
+		return 2
+	}
+	if p.help {
+		fmt.Fprint(a.stdout, helpText(p.path))
+		return 0
+	}
+	if p.version {
+		a.out("tt %s", commandline.Version)
+		return 0
+	}
+	if p.path == "config" {
+		path, err := a.configPath()
+		if err == nil {
+			err = saveConfig(path, p.argument, p.key)
+		}
+		if err != nil {
+			a.diagnostic("Failed to save config: %v", err)
+			return 1
+		}
+		a.out("Controller set to: %s", p.argument)
+		if p.key != nil {
+			a.out("API key saved.")
+		}
+		return 0
+	}
+	if strings.HasPrefix(p.path, "deploy ") {
+		deploy := newDeployer(a)
+		role := strings.TrimPrefix(p.path, "deploy ")
+		if role == "dist" {
+			err = deploy.distributed(a.ctx, p.argument)
+		} else {
+			err = deploy.local(a.ctx, role, p.value("release-dir"))
+		}
+	} else if p.path == "image recipes" {
+		a.listRecipes()
+		return 0
+	} else if p.path == "image create" {
+		builder := newImageBuilder(a)
+		if p.argument == "all" {
+			var engine *string
+			if p.has("engine") {
+				value := p.value("engine")
+				engine = &value
+			}
+			err = builder.createAll(a.ctx, p.value("image-dir"), engine)
+		} else {
+			err = builder.create(a.ctx, p.argument, p.value("image-dir"))
+		}
+	} else {
+		var saved *cliConfig
+		if path, pathErr := a.configPath(); pathErr == nil {
+			saved = loadConfig(path)
+		}
+		address, key, resolveErr := resolveConfig(p.server, p.key, saved)
+		if resolveErr != nil {
+			a.diagnostic("%v", resolveErr)
+			return 1
+		}
+		client, clientErr := newClient(address, key)
+		if clientErr != nil {
+			a.diagnostic("Cannot initialize client: %v", clientErr)
+			return 1
+		}
+		err = a.networkCommand(client, p)
+	}
+	if err != nil {
+		a.diagnostic("Error: %v", err)
+		return 1
+	}
+	return 0
 }

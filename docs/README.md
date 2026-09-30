@@ -12,13 +12,13 @@ maintained description of what is being built and why.
 | [Rust → Go mapping](mapping.md) | find where a Rust module or type lands in Go |
 | [Development](development.md) | build, test, lint and follow repository conventions |
 
-Planned documents that land together with their features:
+Feature guides and remaining documentation:
 
 | Document | Lands with |
 |---|---|
-| `deployment.md` | Phase 6 (CLI deploy) |
-| `guest-images.md` | Phase 6 (image recipes) |
-| `rest-api.md` | Phase 5 (controller API) — interim: use the [Rust reference](../../TTstack/docs/rest-api.md) |
+| [Deployment](deployment.md) | Implemented in phase 6 |
+| [Guest images](guest-images.md) | Implemented in phase 6 |
+| [HTTP API](rest-api.md) | Implemented in phase 5 |
 | `ssh.md` | Phase 4 (agent SSH bootstrap) |
 | `disk-backup.md` | Phase 4/5 (backup protocol) |
 

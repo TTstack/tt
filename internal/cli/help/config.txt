@@ -1,0 +1,11 @@
+Configure the controller address and optional API key
+
+Usage: tt config [OPTIONS] <ADDR>
+
+Arguments:
+  <ADDR>  Controller address, e.g. "10.0.0.1:9200"
+
+Options:
+  -k, --api-key <API_KEY>  API key for authentication (optional) [env: TT_API_KEY=]
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -h, --help               Print help

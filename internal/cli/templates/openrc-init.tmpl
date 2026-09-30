@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+
+name="{name}"
+description="TTstack {name}"
+command="{cmd}"
+command_args="{args}"
+supervisor="supervise-daemon"
+respawn_delay=5
+respawn_max=0
+pidfile="/run/${{name}}.pid"
+output_log="/var/log/${{name}}.log"
+error_log="/var/log/${{name}}.log"
+
+depend() {{
+    need net
+    after firewall
+}}

@@ -1,0 +1,14 @@
+Change one stopped QEMU/Firecracker VM; disk can only grow. Inspect env show for VM IDs
+
+Usage: tt env resize [OPTIONS] --cpu <CPU> --mem <MEM> --disk <DISK> <VM_ID>
+
+Arguments:
+  <VM_ID>  
+
+Options:
+      --cpu <CPU>          
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -k, --api-key <API_KEY>  API key for controller authentication [env: TT_API_KEY=]
+      --mem <MEM>          
+      --disk <DISK>        Root disk MiB, excluding the configuration drive
+  -h, --help               Print help

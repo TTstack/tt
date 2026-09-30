@@ -46,4 +46,4 @@ deploy: release
 
 help:
 	@echo 'Targets: build release test lint fmt cross clean install deploy-agent deploy-ctl deploy help'
-	@echo 'Deploy commands become functional in phase 6; phase-0 binaries expose help only.'
+	@echo 'Deployment requires an authorized Linux target; native acceptance is tracked in docs/roadmap.md.'

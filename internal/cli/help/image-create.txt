@@ -1,0 +1,13 @@
+Create an image locally from a built-in recipe; run on the intended agent host
+
+Usage: tt image create [OPTIONS] <NAME>
+
+Arguments:
+  <NAME>  Recipe name (see 'tt image recipes'), or "all"
+
+Options:
+      --image-dir <IMAGE_DIR>  Image directory (for non-Docker engines) [default: /home/ttstack/images]
+  -s, --server <SERVER>        Controller address; saved credentials are reused only for the same address
+      --engine <ENGINE>        Filter only bulk creation with name "all" (docker, firecracker, qemu, jail)
+  -k, --api-key <API_KEY>      API key for controller authentication [env: TT_API_KEY=]
+  -h, --help                   Print help

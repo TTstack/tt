@@ -5,12 +5,13 @@
 containers across a small fleet of hosts. Workloads are grouped into environments,
 have a lifetime, and can be stopped, restarted, resized and deleted.
 
-This repository is a work in progress. **Phases 0–5 provide shared contracts,
-storage, networking, engines, the agent and the controller**. `tt-agent`, `tt-ctl`
-and the offline v5 converter are implemented; `tt` remains a help/version stub.
-Native FreeBSD Go/Rust service and database interoperability checks pass; CLI and
-real-guest acceptance remains in the [roadmap](docs/roadmap.md). See the
-[HTTP API](docs/rest-api.md).
+**Phases 0–6 are implemented**, including the CLI, deployment, image recipes,
+agent, controller and offline converter. Unit and native FreeBSD race/integration
+checks pass, with both CLIs tested against all four Go/Rust controller-agent
+combinations using synthetic inventory. Real guest and Linux acceptance remains
+in [phase 7](docs/roadmap.md); the full port is not yet validated end to end.
+See the [HTTP API](docs/rest-api.md), [deployment guide](docs/deployment.md) and
+[image guide](docs/guest-images.md).
 
 ## Why Go
 
@@ -42,8 +43,8 @@ The Go implementation targets **full wire compatibility** with the Rust release:
   addresses, runtime paths, systemd units, key files).
 
 The completed port is intended to let a Rust controller talk to a Go agent and a
-Go controller manage a compatible fleet. This interoperability still requires the
-service implementations and acceptance tests in the roadmap.
+Go controller manage a compatible fleet. Synthetic service interoperability passes; real guest acceptance remains in
+the roadmap.
 The exact contract is written down in [docs/compatibility.md](docs/compatibility.md).
 
 ## Architecture
@@ -62,7 +63,7 @@ tt CLI / Browser → HTTP → tt-ctl → HTTP → tt-agent (one per host)
 | `tt-agent` | Host-local VM/container lifecycle, storage and networking |
 
 Linux x86_64 is the supported host platform with QEMU/KVM, Firecracker and
-Docker/Podman. The planned experimental FreeBSD bhyve/Jail paths use the same native-host
+Docker/Podman. The experimental FreeBSD bhyve/Jail paths use the same native-host
 gates as Rust, with manual setup and limited validation.
 
 ## Building
@@ -80,11 +81,8 @@ make cross     # compile Linux/amd64 and FreeBSD/amd64 without CGo
 
 ## Quick start (single Linux/systemd host)
 
-The following is the target workflow; it becomes executable with phase 6.
-It mirrors the Rust release. See [docs/plan.md](docs/plan.md) and the
-phase-6 deployment documentation that lands with the CLI
-([roadmap](docs/roadmap.md)).
-
+The CLI implements this workflow. Native Linux acceptance is still pending;
+prepare the host prerequisites in [deployment.md](docs/deployment.md).
 ```bash
 make release
 sudo ./bin/tt deploy all --release-dir ./bin

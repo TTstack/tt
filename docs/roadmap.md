@@ -226,6 +226,12 @@ Acceptance
 
 ## Phase 6 — CLI, deployment, images
 
+Status: complete. [Validation evidence](validation/cli-2026-09-30.md) records
+24 Rust CLI output/request cases, 32 help entries, byte-exact deployment templates,
+fake deployment/image failure tests, minimum-toolchain gates and FreeBSD native
+race/integration plus both CLIs against all four controller-agent pairings. Real
+image builds, deployment to Linux services and guest boot remain in phase 7.
+
 Deliverables (`internal/cli`, `cmd/tt`)
 
 - Client with redirects disabled, per-request timeouts and no implicit retries.

@@ -1,0 +1,18 @@
+Create/refresh a stopped VM's backup; the agent must explicitly enable admission
+
+Usage: tt env backup create [OPTIONS] <VM_ID>
+
+Arguments:
+  <VM_ID>  
+
+Options:
+      --operation-id <OPERATION_ID>
+          Reuse the printed UUID for an exact retry after a lost response
+  -s, --server <SERVER>
+          Controller address; saved credentials are reused only for the same address
+      --expected-revision <EXPECTED_REVISION>
+          Reuse the printed revision with --operation-id, never substitute a new one on retry
+  -k, --api-key <API_KEY>
+          API key for controller authentication [env: TT_API_KEY=]
+  -h, --help
+          Print help

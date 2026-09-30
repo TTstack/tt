@@ -1,0 +1,11 @@
+Start all VMs in an environment
+
+Usage: tt env start [OPTIONS] <NAME>
+
+Arguments:
+  <NAME>  
+
+Options:
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -k, --api-key <API_KEY>  API key for controller authentication [env: TT_API_KEY=]
+  -h, --help               Print help

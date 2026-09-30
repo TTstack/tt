@@ -1,0 +1,1672 @@
+{
+  "revision": "1ad83a9feed5fac820d74b5e7ef752e50a552740",
+  "host": {
+    "addr": "127.0.0.1:9100",
+    "capabilities": [],
+    "capability_report": {
+      "backup_admission": true,
+      "engines": [
+        {
+          "engine": "qemu",
+          "features": [
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "vm.run"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "net.tcp.publish"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "tools: ssh-keygen and ssh-keyscan found"
+              ],
+              "reason": null,
+              "tag": "guest.ssh.bootstrap"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Root public keys only; no custom account, sudo or managed SSH metadata",
+              "tag": "guest.ssh.root_keys"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+              "tag": "guest.config.drive"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "net.egress.deny"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "tools: nft and ip probes succeeded"
+              ],
+              "reason": null,
+              "tag": "net.isolation"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "disk.size.create"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "vm.resources.offline"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: qemu",
+                "storage: runtime filesystem passed strict reflink qualification"
+              ],
+              "reason": null,
+              "tag": "disk.backup.point"
+            }
+          ]
+        },
+        {
+          "engine": "firecracker",
+          "features": [
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "vm.run"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "net.tcp.publish"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "tools: ssh-keygen and ssh-keyscan found"
+              ],
+              "reason": null,
+              "tag": "guest.ssh.bootstrap"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Root public keys only; no custom account, sudo or managed SSH metadata",
+              "tag": "guest.ssh.root_keys"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "tool: mkfs.ext4 probe succeeded"
+              ],
+              "reason": null,
+              "tag": "guest.config.drive"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "implementation available; runtime and guest prerequisites checked during the operation"
+              ],
+              "reason": null,
+              "tag": "net.egress.deny"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "tools: nft and ip probes succeeded"
+              ],
+              "reason": null,
+              "tag": "net.isolation"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "tools: e2fsck and resize2fs probes succeeded"
+              ],
+              "reason": null,
+              "tag": "disk.size.create"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "tools: e2fsck and resize2fs probes succeeded"
+              ],
+              "reason": null,
+              "tag": "vm.resources.offline"
+            },
+            {
+              "enabled": true,
+              "evidence": [
+                "engine detected: firecracker",
+                "storage: runtime filesystem passed strict reflink qualification"
+              ],
+              "reason": null,
+              "tag": "disk.backup.point"
+            }
+          ]
+        },
+        {
+          "engine": "docker",
+          "features": [
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "vm.run"
+            },
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "net.tcp.publish"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Prepared guest image required; process state does not establish SSH readiness",
+              "tag": "guest.ssh.bootstrap"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Root public keys only; no custom account, sudo or managed SSH metadata",
+              "tag": "guest.ssh.root_keys"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+              "tag": "guest.config.drive"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Not host or peer isolation; Jail and Docker do not implement this contract",
+              "tag": "net.egress.deny"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Linux QEMU/Firecracker only; independent of outgoing restrictions",
+              "tag": "net.isolation"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+              "tag": "disk.size.create"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+              "tag": "vm.resources.offline"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+              "tag": "disk.backup.point"
+            }
+          ]
+        },
+        {
+          "engine": "bhyve",
+          "features": [
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "vm.run"
+            },
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "net.tcp.publish"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Prepared guest image required; process state does not establish SSH readiness",
+              "tag": "guest.ssh.bootstrap"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Root public keys only; no custom account, sudo or managed SSH metadata",
+              "tag": "guest.ssh.root_keys"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+              "tag": "guest.config.drive"
+            },
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "net.egress.deny"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Linux QEMU/Firecracker only; independent of outgoing restrictions",
+              "tag": "net.isolation"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+              "tag": "disk.size.create"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+              "tag": "vm.resources.offline"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+              "tag": "disk.backup.point"
+            }
+          ]
+        },
+        {
+          "engine": "jail",
+          "features": [
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "vm.run"
+            },
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "net.tcp.publish"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Prepared guest image required; process state does not establish SSH readiness",
+              "tag": "guest.ssh.bootstrap"
+            },
+            {
+              "enabled": false,
+              "reason": "engine unavailable on this host",
+              "tag": "guest.ssh.root_keys"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+              "tag": "guest.config.drive"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Not host or peer isolation; Jail and Docker do not implement this contract",
+              "tag": "net.egress.deny"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Linux QEMU/Firecracker only; independent of outgoing restrictions",
+              "tag": "net.isolation"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+              "tag": "disk.size.create"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+              "tag": "vm.resources.offline"
+            },
+            {
+              "enabled": false,
+              "reason": "unsupported by design: Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+              "tag": "disk.backup.point"
+            }
+          ]
+        }
+      ],
+      "storage": "file",
+      "version": 1
+    },
+    "engines": [
+      "qemu"
+    ],
+    "error": null,
+    "id": "host-fixture",
+    "image_sizes": {},
+    "images": [],
+    "registered_at": 0,
+    "resource": {
+      "cpu_total": 8,
+      "cpu_used": 0,
+      "disk_total": 100000,
+      "disk_used": 0,
+      "mem_total": 8192,
+      "mem_used": 0,
+      "vm_count": 0
+    },
+    "state": "online",
+    "storage": "file"
+  },
+  "vm": {
+    "backup": {
+      "cleanup_error": null,
+      "cleanup_failures": 0,
+      "cleanup_retry_at": 0,
+      "current": null,
+      "forwarding": null,
+      "forwarding_reserved_mib": 0,
+      "forwarding_settled_sequence": null,
+      "last_result": null,
+      "pending": null,
+      "retired": [],
+      "revision": "00000000-0000-4000-8000-000000000001",
+      "sequence": 0
+    },
+    "cpu": 1,
+    "created_at": 18446744073709551615,
+    "disk": 2048,
+    "engine": "qemu",
+    "env_id": "env-fixture",
+    "error": null,
+    "host_id": "host-fixture",
+    "id": "vm-fixture",
+    "image": "image-fixture",
+    "ip": "10.10.0.2",
+    "mem": 256,
+    "options": {
+      "deny_outgoing": false,
+      "isolated_network": false,
+      "ports": [],
+      "requested_disk": 0,
+      "ssh": {
+        "sudo": false,
+        "user": "root"
+      },
+      "ssh_keys": []
+    },
+    "port_map": {
+      "22": 20022,
+      "80": 20080,
+      "443": 20443
+    },
+    "ssh": {
+      "checked_at": 0,
+      "host": "127.0.0.1",
+      "host_key": "ssh-ed25519 AAAA synthetic",
+      "initialized": false,
+      "port": 20000,
+      "ready": false,
+      "sudo": false,
+      "user": "root"
+    },
+    "state": "stopped"
+  },
+  "env": {
+    "created_at": 1,
+    "error": null,
+    "expires_at": 0,
+    "id": "env-fixture",
+    "owner": "fixture",
+    "state": "stopped",
+    "vm_ids": [
+      "vm-fixture"
+    ]
+  },
+  "matrix": {
+    "combinations": [
+      {
+        "engine": "qemu",
+        "experimental": false,
+        "features": [
+          {
+            "limit": "Process readiness is not application readiness",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": true,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": true,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": true,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "No shrinking; guest partitions and filesystems must grow separately",
+            "supported": true,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "No shrinking; guest partitions and filesystems must grow separately",
+            "supported": true,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+            "supported": true,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "linux",
+        "storage": "file"
+      },
+      {
+        "engine": "qemu",
+        "experimental": false,
+        "features": [
+          {
+            "limit": "Process readiness is not application readiness",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": true,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": true,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": true,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "No shrinking; guest partitions and filesystems must grow separately",
+            "supported": true,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "No shrinking; guest partitions and filesystems must grow separately",
+            "supported": true,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery",
+            "supported": true,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "linux",
+        "storage": "zvol"
+      },
+      {
+        "engine": "firecracker",
+        "experimental": false,
+        "features": [
+          {
+            "limit": "Requires jailer and delegated cgroup controllers; zvol needs compatible agent support",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": true,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": true,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": true,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": true,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": true,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": true,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+            "supported": true,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "linux",
+        "storage": "file"
+      },
+      {
+        "engine": "firecracker",
+        "experimental": false,
+        "features": [
+          {
+            "limit": "Requires jailer and delegated cgroup controllers; zvol needs compatible agent support",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": true,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": true,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": true,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": true,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": true,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": true,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery",
+            "supported": true,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "linux",
+        "storage": "zvol"
+      },
+      {
+        "engine": "docker",
+        "experimental": false,
+        "features": [
+          {
+            "limit": "Process readiness is not application readiness",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": false,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": false,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": false,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+            "supported": false,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "linux",
+        "storage": "file"
+      },
+      {
+        "engine": "docker",
+        "experimental": false,
+        "features": [
+          {
+            "limit": "Process readiness is not application readiness",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": false,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": false,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": false,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery",
+            "supported": false,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "linux",
+        "storage": "zvol"
+      },
+      {
+        "engine": "bhyve",
+        "experimental": true,
+        "features": [
+          {
+            "limit": "Experimental FreeBSD; manual host and guest setup required",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": false,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": true,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": false,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+            "supported": false,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "freebsd",
+        "storage": "file"
+      },
+      {
+        "engine": "bhyve",
+        "experimental": true,
+        "features": [
+          {
+            "limit": "Experimental FreeBSD; manual host and guest setup required",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": false,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": true,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": false,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery",
+            "supported": true,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "freebsd",
+        "storage": "zvol"
+      },
+      {
+        "engine": "jail",
+        "experimental": true,
+        "features": [
+          {
+            "limit": "Experimental FreeBSD; manual host and guest setup required",
+            "supported": true,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": true,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": false,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": true,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": false,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": false,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission",
+            "supported": false,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "freebsd",
+        "storage": "file"
+      },
+      {
+        "engine": "jail",
+        "experimental": true,
+        "features": [
+          {
+            "limit": "Jail requires file storage",
+            "supported": false,
+            "tag": "vm.run"
+          },
+          {
+            "limit": "Reachability and reserved host port ranges remain deployment prerequisites",
+            "supported": false,
+            "tag": "net.tcp.publish"
+          },
+          {
+            "limit": "Prepared guest image required; process state does not establish SSH readiness",
+            "supported": false,
+            "tag": "guest.ssh.bootstrap"
+          },
+          {
+            "limit": "Root public keys only; no custom account, sudo or managed SSH metadata",
+            "supported": false,
+            "tag": "guest.ssh.root_keys"
+          },
+          {
+            "limit": "Firecracker only; 32 files / 64 KiB, including the managed SSH seed",
+            "supported": false,
+            "tag": "guest.config.drive"
+          },
+          {
+            "limit": "Not host or peer isolation; Jail and Docker do not implement this contract",
+            "supported": false,
+            "tag": "net.egress.deny"
+          },
+          {
+            "limit": "Linux QEMU/Firecracker only; independent of outgoing restrictions",
+            "supported": false,
+            "tag": "net.isolation"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "disk.size.create"
+          },
+          {
+            "limit": "Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking",
+            "supported": false,
+            "tag": "vm.resources.offline"
+          },
+          {
+            "limit": "Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery",
+            "supported": false,
+            "tag": "disk.backup.point"
+          }
+        ],
+        "platform": "freebsd",
+        "storage": "zvol"
+      }
+    ],
+    "create_fields": {
+      "deny_outgoing": [
+        "net.egress.deny"
+      ],
+      "disk": [
+        "disk.size.create"
+      ],
+      "guest_config": [
+        "guest.config.drive"
+      ],
+      "isolated_network": [
+        "net.isolation"
+      ],
+      "ports": [
+        "net.tcp.publish"
+      ],
+      "ssh_keys": [
+        "guest.ssh.bootstrap",
+        "guest.ssh.root_keys"
+      ]
+    },
+    "definitions": [
+      {
+        "meaning": "Create and cold-start a workload with this engine and storage",
+        "tag": "vm.run"
+      },
+      {
+        "meaning": "Publish TCP guest ports on the agent host",
+        "tag": "net.tcp.publish"
+      },
+      {
+        "meaning": "Initialize an SSH account and report its access metadata",
+        "tag": "guest.ssh.bootstrap"
+      },
+      {
+        "meaning": "Inject root authorized keys without managed SSH bootstrap",
+        "tag": "guest.ssh.root_keys"
+      },
+      {
+        "meaning": "Deliver caller-supplied opaque files on a read-only guest drive",
+        "tag": "guest.config.drive"
+      },
+      {
+        "meaning": "Block new routed guest egress while preserving incoming replies",
+        "tag": "net.egress.deny"
+      },
+      {
+        "meaning": "Enforce guest isolation from host, peers and private networks",
+        "tag": "net.isolation"
+      },
+      {
+        "meaning": "Request virtual root-disk capacity at creation",
+        "tag": "disk.size.create"
+      },
+      {
+        "meaning": "Update CPU, memory and root-disk capacity while stopped",
+        "tag": "vm.resources.offline"
+      },
+      {
+        "meaning": "Create a stopped root-disk recovery point using a qualified primitive",
+        "tag": "disk.backup.point"
+      }
+    ],
+    "version": 1
+  },
+  "backup": {
+    "enabled": true,
+    "supported": true,
+    "unsupported_reason": null,
+    "vm": {
+      "backup": {
+        "cleanup_error": null,
+        "cleanup_failures": 0,
+        "cleanup_retry_at": 0,
+        "current": null,
+        "forwarding": null,
+        "forwarding_reserved_mib": 0,
+        "forwarding_settled_sequence": null,
+        "last_result": null,
+        "pending": null,
+        "retired": [],
+        "revision": "00000000-0000-4000-8000-000000000001",
+        "sequence": 0
+      },
+      "cpu": 1,
+      "created_at": 18446744073709551615,
+      "disk": 2048,
+      "engine": "qemu",
+      "env_id": "env-fixture",
+      "error": null,
+      "host_id": "host-fixture",
+      "id": "vm-fixture",
+      "image": "image-fixture",
+      "ip": "10.10.0.2",
+      "mem": 256,
+      "options": {
+        "deny_outgoing": false,
+        "isolated_network": false,
+        "ports": [],
+        "requested_disk": 0,
+        "ssh": {
+          "sudo": false,
+          "user": "root"
+        },
+        "ssh_keys": []
+      },
+      "port_map": {
+        "22": 20022,
+        "80": 20080,
+        "443": 20443
+      },
+      "ssh": {
+        "checked_at": 0,
+        "host": "127.0.0.1",
+        "host_key": "ssh-ed25519 AAAA synthetic",
+        "initialized": false,
+        "port": 20000,
+        "ready": false,
+        "sudo": false,
+        "user": "root"
+      },
+      "state": "stopped"
+    }
+  },
+  "status": {
+    "cpu_total": 0,
+    "cpu_used": 0,
+    "disk_total": 0,
+    "disk_used": 0,
+    "hosts": 0,
+    "hosts_online": 0,
+    "mem_total": 0,
+    "mem_used": 0,
+    "total_envs": 0,
+    "total_vms": 0
+  },
+  "cases": [
+    {
+      "args": [
+        "status"
+      ],
+      "empty": false,
+      "stdout": "Fleet Status\n  Hosts:   0/0 online\n  VMs:     0\n  Envs:    0\n  CPU:     0/0 cores\n  Memory:  0/0 MB\n  Disk:    0/0 MB\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/status",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "capabilities"
+      ],
+      "empty": false,
+      "stdout": "ENGINE        STORAGE PLATFORM                CAPABILITIES\nqemu file linux                   vm.run, net.tcp.publish, guest.ssh.bootstrap, net.egress.deny, net.isolation, disk.size.create, vm.resources.offline, disk.backup.point\nqemu zvol linux                   vm.run, net.tcp.publish, guest.ssh.bootstrap, net.egress.deny, net.isolation, disk.size.create, vm.resources.offline, disk.backup.point\nfirecracker file linux                   vm.run, net.tcp.publish, guest.ssh.bootstrap, guest.config.drive, net.egress.deny, net.isolation, disk.size.create, vm.resources.offline, disk.backup.point\nfirecracker zvol linux                   vm.run, net.tcp.publish, guest.ssh.bootstrap, guest.config.drive, net.egress.deny, net.isolation, disk.size.create, vm.resources.offline, disk.backup.point\ndocker file linux                   vm.run, net.tcp.publish\ndocker zvol linux                   vm.run, net.tcp.publish\nbhyve file freebsd (experimental)  vm.run, net.tcp.publish, net.egress.deny\nbhyve zvol freebsd (experimental)  vm.run, net.tcp.publish, net.egress.deny, disk.backup.point\njail file freebsd (experimental)  vm.run, net.tcp.publish, guest.ssh.root_keys\njail zvol freebsd (experimental)  unsupported\nHost prerequisites and VM eligibility are checked separately. Use 'tt host show ID' for the current host report.\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/capabilities",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "capabilities",
+        "--json"
+      ],
+      "empty": false,
+      "stdout": "{\n  \"version\": 1,\n  \"definitions\": [\n    {\n      \"tag\": \"vm.run\",\n      \"meaning\": \"Create and cold-start a workload with this engine and storage\"\n    },\n    {\n      \"tag\": \"net.tcp.publish\",\n      \"meaning\": \"Publish TCP guest ports on the agent host\"\n    },\n    {\n      \"tag\": \"guest.ssh.bootstrap\",\n      \"meaning\": \"Initialize an SSH account and report its access metadata\"\n    },\n    {\n      \"tag\": \"guest.ssh.root_keys\",\n      \"meaning\": \"Inject root authorized keys without managed SSH bootstrap\"\n    },\n    {\n      \"tag\": \"guest.config.drive\",\n      \"meaning\": \"Deliver caller-supplied opaque files on a read-only guest drive\"\n    },\n    {\n      \"tag\": \"net.egress.deny\",\n      \"meaning\": \"Block new routed guest egress while preserving incoming replies\"\n    },\n    {\n      \"tag\": \"net.isolation\",\n      \"meaning\": \"Enforce guest isolation from host, peers and private networks\"\n    },\n    {\n      \"tag\": \"disk.size.create\",\n      \"meaning\": \"Request virtual root-disk capacity at creation\"\n    },\n    {\n      \"tag\": \"vm.resources.offline\",\n      \"meaning\": \"Update CPU, memory and root-disk capacity while stopped\"\n    },\n    {\n      \"tag\": \"disk.backup.point\",\n      \"meaning\": \"Create a stopped root-disk recovery point using a qualified primitive\"\n    }\n  ],\n  \"create_fields\": {\n    \"deny_outgoing\": [\n      \"net.egress.deny\"\n    ],\n    \"disk\": [\n      \"disk.size.create\"\n    ],\n    \"guest_config\": [\n      \"guest.config.drive\"\n    ],\n    \"isolated_network\": [\n      \"net.isolation\"\n    ],\n    \"ports\": [\n      \"net.tcp.publish\"\n    ],\n    \"ssh_keys\": [\n      \"guest.ssh.bootstrap\",\n      \"guest.ssh.root_keys\"\n    ]\n  },\n  \"combinations\": [\n    {\n      \"engine\": \"qemu\",\n      \"storage\": \"file\",\n      \"platform\": \"linux\",\n      \"experimental\": false,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Process readiness is not application readiness\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": true,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": true,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": true,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": true,\n          \"limit\": \"No shrinking; guest partitions and filesystems must grow separately\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": true,\n          \"limit\": \"No shrinking; guest partitions and filesystems must grow separately\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": true,\n          \"limit\": \"Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"qemu\",\n      \"storage\": \"zvol\",\n      \"platform\": \"linux\",\n      \"experimental\": false,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Process readiness is not application readiness\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": true,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": true,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": true,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": true,\n          \"limit\": \"No shrinking; guest partitions and filesystems must grow separately\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": true,\n          \"limit\": \"No shrinking; guest partitions and filesystems must grow separately\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": true,\n          \"limit\": \"Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"firecracker\",\n      \"storage\": \"file\",\n      \"platform\": \"linux\",\n      \"experimental\": false,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Requires jailer and delegated cgroup controllers; zvol needs compatible agent support\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": true,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": true,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": true,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": true,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": true,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": true,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": true,\n          \"limit\": \"Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"firecracker\",\n      \"storage\": \"zvol\",\n      \"platform\": \"linux\",\n      \"experimental\": false,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Requires jailer and delegated cgroup controllers; zvol needs compatible agent support\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": true,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": true,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": true,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": true,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": true,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": true,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": true,\n          \"limit\": \"Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"docker\",\n      \"storage\": \"file\",\n      \"platform\": \"linux\",\n      \"experimental\": false,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Process readiness is not application readiness\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": false,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": false,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": false,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": false,\n          \"limit\": \"Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"docker\",\n      \"storage\": \"zvol\",\n      \"platform\": \"linux\",\n      \"experimental\": false,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Process readiness is not application readiness\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": false,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": false,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": false,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": false,\n          \"limit\": \"Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"bhyve\",\n      \"storage\": \"file\",\n      \"platform\": \"freebsd\",\n      \"experimental\": true,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Experimental FreeBSD; manual host and guest setup required\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": false,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": true,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": false,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": false,\n          \"limit\": \"Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"bhyve\",\n      \"storage\": \"zvol\",\n      \"platform\": \"freebsd\",\n      \"experimental\": true,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Experimental FreeBSD; manual host and guest setup required\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": false,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": true,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": false,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": true,\n          \"limit\": \"Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"jail\",\n      \"storage\": \"file\",\n      \"platform\": \"freebsd\",\n      \"experimental\": true,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": true,\n          \"limit\": \"Experimental FreeBSD; manual host and guest setup required\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": true,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": false,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": true,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": false,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": false,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": false,\n          \"limit\": \"Linux strict reflink qualification required; no full-copy fallback; existing backup recovery is separate from admission\"\n        }\n      ]\n    },\n    {\n      \"engine\": \"jail\",\n      \"storage\": \"zvol\",\n      \"platform\": \"freebsd\",\n      \"experimental\": true,\n      \"features\": [\n        {\n          \"tag\": \"vm.run\",\n          \"supported\": false,\n          \"limit\": \"Jail requires file storage\"\n        },\n        {\n          \"tag\": \"net.tcp.publish\",\n          \"supported\": false,\n          \"limit\": \"Reachability and reserved host port ranges remain deployment prerequisites\"\n        },\n        {\n          \"tag\": \"guest.ssh.bootstrap\",\n          \"supported\": false,\n          \"limit\": \"Prepared guest image required; process state does not establish SSH readiness\"\n        },\n        {\n          \"tag\": \"guest.ssh.root_keys\",\n          \"supported\": false,\n          \"limit\": \"Root public keys only; no custom account, sudo or managed SSH metadata\"\n        },\n        {\n          \"tag\": \"guest.config.drive\",\n          \"supported\": false,\n          \"limit\": \"Firecracker only; 32 files / 64 KiB, including the managed SSH seed\"\n        },\n        {\n          \"tag\": \"net.egress.deny\",\n          \"supported\": false,\n          \"limit\": \"Not host or peer isolation; Jail and Docker do not implement this contract\"\n        },\n        {\n          \"tag\": \"net.isolation\",\n          \"supported\": false,\n          \"limit\": \"Linux QEMU/Firecracker only; independent of outgoing restrictions\"\n        },\n        {\n          \"tag\": \"disk.size.create\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"vm.resources.offline\",\n          \"supported\": false,\n          \"limit\": \"Stopped resource updates; Firecracker grows an unpartitioned ext4 root; no shrinking\"\n        },\n        {\n          \"tag\": \"disk.backup.point\",\n          \"supported\": false,\n          \"limit\": \"Stopped zvol only; verify ownership and capacity per operation; no memory or deleted-VM recovery\"\n        }\n      ]\n    }\n  ]\n}\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/capabilities",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "host",
+        "list"
+      ],
+      "empty": false,
+      "stdout": "ID           ADDR                   STATE       CPU  MEM(MB)      VMs\nhost-fixture 127.0.0.1:9100         online     0/8      0/8192    0\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/hosts",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "host",
+        "show",
+        "host-fixture"
+      ],
+      "empty": false,
+      "stdout": "Host: host-fixture\n  Address:  127.0.0.1:9100\n  State:    Online\n  Engines:  [Qemu]\n  Storage:  file\n  CPU:      0/8\n  Memory:   0/8192 MB\n  Disk:     0/100000 MB\n  VMs:      0\n  Capability report: v1\n  Backup admission: enabled\n    qemu: vm.run, net.tcp.publish, guest.ssh.bootstrap, net.egress.deny, net.isolation, disk.size.create, vm.resources.offline, disk.backup.point\n      guest.ssh.root_keys: unsupported by design: Root public keys only; no custom account, sudo or managed SSH metadata\n      guest.config.drive: unsupported by design: Firecracker only; 32 files / 64 KiB, including the managed SSH seed\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/hosts/host-fixture",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "host",
+        "add",
+        "192.0.2.1:9100"
+      ],
+      "empty": false,
+      "stdout": "Host registered: host-fixture (127.0.0.1:9100)\n  Engines: [Qemu]\n  Storage: file\n  Resources: 8 CPU, 8192 MB RAM, 100000 MB disk\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/hosts",
+          "body": {
+            "addr": "192.0.2.1:9100"
+          },
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "host",
+        "remove",
+        "host-fixture"
+      ],
+      "empty": false,
+      "stdout": "Host removed: host-fixture\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/hosts/host-fixture",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "host",
+        "detach",
+        "host-fixture"
+      ],
+      "empty": false,
+      "stdout": "[\n  {\n    \"backup\": {\n      \"revision\": \"00000000-0000-4000-8000-000000000001\",\n      \"sequence\": 0,\n      \"current\": null,\n      \"pending\": null,\n      \"retired\": [],\n      \"last_result\": null,\n      \"cleanup_error\": null,\n      \"cleanup_retry_at\": 0,\n      \"cleanup_failures\": 0,\n      \"forwarding\": null,\n      \"forwarding_reserved_mib\": 0,\n      \"forwarding_settled_sequence\": null\n    },\n    \"ssh\": {\n      \"user\": \"root\",\n      \"sudo\": false,\n      \"host\": \"127.0.0.1\",\n      \"port\": 20000,\n      \"host_key\": \"ssh-ed25519 AAAA synthetic\",\n      \"ready\": false,\n      \"checked_at\": 0,\n      \"initialized\": false\n    },\n    \"id\": \"vm-fixture\",\n    \"env_id\": \"env-fixture\",\n    \"host_id\": \"host-fixture\",\n    \"image\": \"image-fixture\",\n    \"engine\": \"qemu\",\n    \"cpu\": 1,\n    \"mem\": 256,\n    \"disk\": 2048,\n    \"ip\": \"10.10.0.2\",\n    \"port_map\": {\n      \"22\": 20022,\n      \"80\": 20080,\n      \"443\": 20443\n    },\n    \"options\": {\n      \"ssh\": {\n        \"user\": \"root\",\n        \"sudo\": false\n      },\n      \"ports\": [],\n      \"ssh_keys\": [],\n      \"deny_outgoing\": false,\n      \"requested_disk\": 0,\n      \"isolated_network\": false\n    },\n    \"error\": null,\n    \"state\": \"stopped\",\n    \"created_at\": 18446744073709551615\n  }\n]\n",
+      "stderr": "Host host-fixture detached. Listed guests may still be running; reclaim them on that host separately.\n",
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/hosts/host-fixture/detach",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "list"
+      ],
+      "empty": false,
+      "stdout": "NAME             OWNER        STATE     VMs  EXPIRES\nenv-fixture      fixture      stopped     1  never (retained until explicit deletion)\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/envs",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "show",
+        "env-fixture"
+      ],
+      "empty": false,
+      "stdout": "Environment: env-fixture\n  Owner:   fixture\n  State:   Stopped\n  VMs:     1\n  Expiry:  never (retained until explicit deletion)\n\n  ID         IMAGE         ENGINE     STATE    IP               PORTS\n  vm-fixture image-fixture qemu       stopped  10.10.0.2        20022->22, 20080->80, 20443->443\n  SSH vm-fixture: ssh -p 20000 root@127.0.0.1 (SSH not yet ready from agent)\n  On agent host host-fixture: 10.10.0.2:22 (direct guest TCP)\n  On agent host host-fixture: 10.10.0.2:80 (direct guest TCP)\n  On agent host host-fixture: 10.10.0.2:443 (direct guest TCP)\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/envs/env-fixture",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/hosts",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "delete",
+        "env-fixture"
+      ],
+      "empty": false,
+      "stdout": "Environment deleted: env-fixture\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/envs/env-fixture",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "stop",
+        "env-fixture"
+      ],
+      "empty": false,
+      "stdout": "Environment stopped: env-fixture\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/envs/env-fixture/stop",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "start",
+        "env-fixture"
+      ],
+      "empty": false,
+      "stdout": "Environment started: env-fixture\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/envs/env-fixture/start",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "resize",
+        "vm-fixture",
+        "--cpu",
+        "2",
+        "--mem",
+        "512",
+        "--disk",
+        "4096"
+      ],
+      "empty": false,
+      "stdout": "VM vm-fixture updated and stopped: 2 vCPU, 512 MiB memory, 4096 MiB root disk\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/vms/vm-fixture/resources",
+          "body": {
+            "cpu": 2,
+            "mem": 512,
+            "disk": 4096
+          },
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "backup",
+        "show",
+        "vm-fixture"
+      ],
+      "empty": false,
+      "stdout": "{\n  \"vm\": {\n    \"backup\": {\n      \"revision\": \"00000000-0000-4000-8000-000000000001\",\n      \"sequence\": 0,\n      \"current\": null,\n      \"pending\": null,\n      \"retired\": [],\n      \"last_result\": null,\n      \"cleanup_error\": null,\n      \"cleanup_retry_at\": 0,\n      \"cleanup_failures\": 0,\n      \"forwarding\": null,\n      \"forwarding_reserved_mib\": 0,\n      \"forwarding_settled_sequence\": null\n    },\n    \"ssh\": {\n      \"user\": \"root\",\n      \"sudo\": false,\n      \"host\": \"127.0.0.1\",\n      \"port\": 20000,\n      \"host_key\": \"ssh-ed25519 AAAA synthetic\",\n      \"ready\": false,\n      \"checked_at\": 0,\n      \"initialized\": false\n    },\n    \"id\": \"vm-fixture\",\n    \"env_id\": \"env-fixture\",\n    \"host_id\": \"host-fixture\",\n    \"image\": \"image-fixture\",\n    \"engine\": \"qemu\",\n    \"cpu\": 1,\n    \"mem\": 256,\n    \"disk\": 2048,\n    \"ip\": \"10.10.0.2\",\n    \"port_map\": {\n      \"22\": 20022,\n      \"80\": 20080,\n      \"443\": 20443\n    },\n    \"options\": {\n      \"ssh\": {\n        \"user\": \"root\",\n        \"sudo\": false\n      },\n      \"ports\": [],\n      \"ssh_keys\": [],\n      \"deny_outgoing\": false,\n      \"requested_disk\": 0,\n      \"isolated_network\": false\n    },\n    \"error\": null,\n    \"state\": \"stopped\",\n    \"created_at\": 18446744073709551615\n  },\n  \"enabled\": true,\n  \"supported\": true,\n  \"unsupported_reason\": null\n}\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/vms/vm-fixture/backup",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "image",
+        "list"
+      ],
+      "empty": false,
+      "stdout": "IMAGE                          HOST        \nimage-fixture                  host-fixture\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/images",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "image",
+        "recipes"
+      ],
+      "empty": false,
+      "stdout": "NAME             ENGINE         DESCRIPTION\nalpine           docker         Alpine Linux 3.21 container base (needs a long-running workload)\ndebian           docker         Debian 13 Trixie slim container base (needs a long-running workload)\nubuntu           docker         Ubuntu 24.04 container base (needs a long-running workload)\nrockylinux       docker         Rocky Linux 9 minimal container base (needs a long-running workload)\nnginx            docker         Nginx web server (Alpine-based)\nredis            docker         Redis 7 (Alpine-based)\npostgres         docker         PostgreSQL 17 (requires workload-specific initialization settings)\nfc-alpine        firecracker    Alpine boot/network check (kernel + 128 MiB rootfs; no SSH)\nalpine-cloud     qemu           Alpine Linux 3.21.7 NoCloud image (qcow2)\ndebian-cloud     qemu           Debian 13 generic cloud image (qcow2, daily/latest)\nubuntu-cloud     qemu           Ubuntu 24.04 cloud image (qcow2, current)\nfreebsd-base     jail           Experimental FreeBSD base archive (derived from host release)\n",
+      "stderr": "",
+      "requests": []
+    },
+    {
+      "args": [
+        "env",
+        "create",
+        "new",
+        "--image",
+        "image-fixture",
+        "--owner",
+        "fixture",
+        "--cpu",
+        "1",
+        "--mem",
+        "256",
+        "--disk",
+        "2048",
+        "--lifetime",
+        "0"
+      ],
+      "empty": false,
+      "stdout": "Environment created: new\n  VMs: 1\n    vm-fixture [qemu] image-fixture — 10.10.0.2  ports: {22: 20022, 80: 20080, 443: 20443}\n  SSH vm-fixture: ssh -p 20000 root@127.0.0.1 (SSH not yet ready from agent)\n  On agent host host-fixture: 10.10.0.2:22 (direct guest TCP)\n  On agent host host-fixture: 10.10.0.2:80 (direct guest TCP)\n  On agent host host-fixture: 10.10.0.2:443 (direct guest TCP)\n",
+      "stderr": "Creating environment new; you can inspect it with 'tt env show new'.\nExpiry: never (retained until explicit deletion)\n",
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/envs",
+          "body": {
+            "id": "new",
+            "owner": "fixture",
+            "vms": [
+              {
+                "image": "image-fixture",
+                "engine": "qemu",
+                "cpu": 1,
+                "mem": 256,
+                "disk": 2048,
+                "ports": [],
+                "deny_outgoing": false,
+                "isolated_network": false
+              }
+            ],
+            "lifetime": 0
+          },
+          "idempotency_key": null,
+          "if_match": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/hosts",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "backup",
+        "create",
+        "vm-fixture",
+        "--operation-id",
+        "00000000-0000-4000-8000-000000000002",
+        "--expected-revision",
+        "00000000-0000-4000-8000-000000000001"
+      ],
+      "empty": false,
+      "stdout": "{\n  \"vm\": {\n    \"backup\": {\n      \"revision\": \"00000000-0000-4000-8000-000000000001\",\n      \"sequence\": 0,\n      \"current\": null,\n      \"pending\": null,\n      \"retired\": [],\n      \"last_result\": null,\n      \"cleanup_error\": null,\n      \"cleanup_retry_at\": 0,\n      \"cleanup_failures\": 0,\n      \"forwarding\": null,\n      \"forwarding_reserved_mib\": 0,\n      \"forwarding_settled_sequence\": null\n    },\n    \"ssh\": {\n      \"user\": \"root\",\n      \"sudo\": false,\n      \"host\": \"127.0.0.1\",\n      \"port\": 20000,\n      \"host_key\": \"ssh-ed25519 AAAA synthetic\",\n      \"ready\": false,\n      \"checked_at\": 0,\n      \"initialized\": false\n    },\n    \"id\": \"vm-fixture\",\n    \"env_id\": \"env-fixture\",\n    \"host_id\": \"host-fixture\",\n    \"image\": \"image-fixture\",\n    \"engine\": \"qemu\",\n    \"cpu\": 1,\n    \"mem\": 256,\n    \"disk\": 2048,\n    \"ip\": \"10.10.0.2\",\n    \"port_map\": {\n      \"22\": 20022,\n      \"80\": 20080,\n      \"443\": 20443\n    },\n    \"options\": {\n      \"ssh\": {\n        \"user\": \"root\",\n        \"sudo\": false\n      },\n      \"ports\": [],\n      \"ssh_keys\": [],\n      \"deny_outgoing\": false,\n      \"requested_disk\": 0,\n      \"isolated_network\": false\n    },\n    \"error\": null,\n    \"state\": \"stopped\",\n    \"created_at\": 18446744073709551615\n  },\n  \"enabled\": true,\n  \"supported\": true,\n  \"unsupported_reason\": null\n}\n",
+      "stderr": "Exact retry after an unknown outcome:\n  tt env backup create vm-fixture --operation-id 00000000-0000-4000-8000-000000000002 --expected-revision 00000000-0000-4000-8000-000000000001\n",
+      "requests": [
+        {
+          "method": "PUT",
+          "path": "/api/vms/vm-fixture/backup",
+          "body": null,
+          "idempotency_key": "00000000-0000-4000-8000-000000000002",
+          "if_match": "\"00000000-0000-4000-8000-000000000001\""
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "backup",
+        "restore",
+        "vm-fixture",
+        "--operation-id",
+        "00000000-0000-4000-8000-000000000002",
+        "--expected-revision",
+        "00000000-0000-4000-8000-000000000001",
+        "--generation",
+        "00000000-0000-4000-8000-000000000003"
+      ],
+      "empty": false,
+      "stdout": "{\n  \"vm\": {\n    \"backup\": {\n      \"revision\": \"00000000-0000-4000-8000-000000000001\",\n      \"sequence\": 0,\n      \"current\": null,\n      \"pending\": null,\n      \"retired\": [],\n      \"last_result\": null,\n      \"cleanup_error\": null,\n      \"cleanup_retry_at\": 0,\n      \"cleanup_failures\": 0,\n      \"forwarding\": null,\n      \"forwarding_reserved_mib\": 0,\n      \"forwarding_settled_sequence\": null\n    },\n    \"ssh\": {\n      \"user\": \"root\",\n      \"sudo\": false,\n      \"host\": \"127.0.0.1\",\n      \"port\": 20000,\n      \"host_key\": \"ssh-ed25519 AAAA synthetic\",\n      \"ready\": false,\n      \"checked_at\": 0,\n      \"initialized\": false\n    },\n    \"id\": \"vm-fixture\",\n    \"env_id\": \"env-fixture\",\n    \"host_id\": \"host-fixture\",\n    \"image\": \"image-fixture\",\n    \"engine\": \"qemu\",\n    \"cpu\": 1,\n    \"mem\": 256,\n    \"disk\": 2048,\n    \"ip\": \"10.10.0.2\",\n    \"port_map\": {\n      \"22\": 20022,\n      \"80\": 20080,\n      \"443\": 20443\n    },\n    \"options\": {\n      \"ssh\": {\n        \"user\": \"root\",\n        \"sudo\": false\n      },\n      \"ports\": [],\n      \"ssh_keys\": [],\n      \"deny_outgoing\": false,\n      \"requested_disk\": 0,\n      \"isolated_network\": false\n    },\n    \"error\": null,\n    \"state\": \"stopped\",\n    \"created_at\": 18446744073709551615\n  },\n  \"enabled\": true,\n  \"supported\": true,\n  \"unsupported_reason\": null\n}\n",
+      "stderr": "Exact retry after an unknown outcome:\n  tt env backup restore vm-fixture --operation-id 00000000-0000-4000-8000-000000000002 --expected-revision 00000000-0000-4000-8000-000000000001 --generation 00000000-0000-4000-8000-000000000003\nRestoring disk generation 00000000-0000-4000-8000-000000000003; the VM stays stopped.\n",
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/vms/vm-fixture/backup/restore",
+          "body": {
+            "generation": "00000000-0000-4000-8000-000000000003"
+          },
+          "idempotency_key": "00000000-0000-4000-8000-000000000002",
+          "if_match": "\"00000000-0000-4000-8000-000000000001\""
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "backup",
+        "delete",
+        "vm-fixture",
+        "--operation-id",
+        "00000000-0000-4000-8000-000000000002",
+        "--expected-revision",
+        "00000000-0000-4000-8000-000000000001"
+      ],
+      "empty": false,
+      "stdout": "{\n  \"vm\": {\n    \"backup\": {\n      \"revision\": \"00000000-0000-4000-8000-000000000001\",\n      \"sequence\": 0,\n      \"current\": null,\n      \"pending\": null,\n      \"retired\": [],\n      \"last_result\": null,\n      \"cleanup_error\": null,\n      \"cleanup_retry_at\": 0,\n      \"cleanup_failures\": 0,\n      \"forwarding\": null,\n      \"forwarding_reserved_mib\": 0,\n      \"forwarding_settled_sequence\": null\n    },\n    \"ssh\": {\n      \"user\": \"root\",\n      \"sudo\": false,\n      \"host\": \"127.0.0.1\",\n      \"port\": 20000,\n      \"host_key\": \"ssh-ed25519 AAAA synthetic\",\n      \"ready\": false,\n      \"checked_at\": 0,\n      \"initialized\": false\n    },\n    \"id\": \"vm-fixture\",\n    \"env_id\": \"env-fixture\",\n    \"host_id\": \"host-fixture\",\n    \"image\": \"image-fixture\",\n    \"engine\": \"qemu\",\n    \"cpu\": 1,\n    \"mem\": 256,\n    \"disk\": 2048,\n    \"ip\": \"10.10.0.2\",\n    \"port_map\": {\n      \"22\": 20022,\n      \"80\": 20080,\n      \"443\": 20443\n    },\n    \"options\": {\n      \"ssh\": {\n        \"user\": \"root\",\n        \"sudo\": false\n      },\n      \"ports\": [],\n      \"ssh_keys\": [],\n      \"deny_outgoing\": false,\n      \"requested_disk\": 0,\n      \"isolated_network\": false\n    },\n    \"error\": null,\n    \"state\": \"stopped\",\n    \"created_at\": 18446744073709551615\n  },\n  \"enabled\": true,\n  \"supported\": true,\n  \"unsupported_reason\": null\n}\n",
+      "stderr": "Exact retry after an unknown outcome:\n  tt env backup delete vm-fixture --operation-id 00000000-0000-4000-8000-000000000002 --expected-revision 00000000-0000-4000-8000-000000000001\n",
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/api/vms/vm-fixture/backup",
+          "body": null,
+          "idempotency_key": "00000000-0000-4000-8000-000000000002",
+          "if_match": "\"00000000-0000-4000-8000-000000000001\""
+        }
+      ]
+    },
+    {
+      "args": [
+        "host",
+        "list"
+      ],
+      "empty": true,
+      "stdout": "No hosts registered.\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/hosts",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "env",
+        "list"
+      ],
+      "empty": true,
+      "stdout": "No environments.\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/envs",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    },
+    {
+      "args": [
+        "image",
+        "list"
+      ],
+      "empty": true,
+      "stdout": "No images available.\n",
+      "stderr": "",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/images",
+          "body": null,
+          "idempotency_key": null,
+          "if_match": null
+        }
+      ]
+    }
+  ]
+}

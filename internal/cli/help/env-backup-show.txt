@@ -1,0 +1,11 @@
+Show support, revision, recovery point, pending work and retirement status
+
+Usage: tt env backup show [OPTIONS] <VM_ID>
+
+Arguments:
+  <VM_ID>  
+
+Options:
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -k, --api-key <API_KEY>  API key for controller authentication [env: TT_API_KEY=]
+  -h, --help               Print help
