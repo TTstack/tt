@@ -5,7 +5,7 @@
 containers across a small fleet of hosts. Workloads are grouped into environments,
 have a lifetime, and can be stopped, restarted, resized and deleted.
 
-This repository is a work in progress. **Phases 0–2 provide build tooling, shared contracts, storage and networking**. The binaries
+This repository is a work in progress. **Phases 0–3 provide build tooling, shared contracts, storage, networking and engines**. The binaries
 currently expose help/version only and refuse service startup; implementation
 continues in phases described in [docs/roadmap.md](docs/roadmap.md).
 
