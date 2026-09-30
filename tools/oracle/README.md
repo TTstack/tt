@@ -1,4 +1,4 @@
-# Rust wire oracle
+# Rust compatibility oracle
 
 `../generate-fixtures.sh RUST_CHECKOUT OUTPUT_JSON` archives the pinned reference
 revision into private staging, adds the example harness, and builds it with the
@@ -19,3 +19,18 @@ Pass `network` as the third argument to generate
 renderer from the archived source with a fixture-only export. A firewall mutation
 shim panics if invoked; the harness calls only the pure renderer and identifier
 functions, including UTF-8 TAP-name input. The reference checkout stays unchanged.
+
+Pass `engines` as the third argument to generate
+`internal/engine/testdata/engines.json`. The small Go extraction helper copies
+pure Rust command/configuration fragments from the archived source; the compiled
+Rust example emits QEMU arguments/network YAML, Docker arguments, bhyve arguments,
+jail configuration, jailer arguments and Firecracker JSON (semantic and exact
+bytes). It substitutes only fixture inputs: image/runtime paths, runtime choice,
+and bhyve's TAP lookup. It never launches an engine or changes networking.
+
+All modes clean the `ttcore` Cargo artifacts before compiling the oracle. Cargo
+can otherwise reuse an example from a different archived tree when source mtimes
+are older than its cache. Dependency artifacts stay cached. The engine mode needs
+Go as well as Rust; it introduces no Python dependency. Generation is sequential
+when sharing one Cargo target directory. After the cache fix, all three modes were
+rebuilt on FreeBSD; existing wire/network fixtures were byte-identical.

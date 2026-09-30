@@ -139,6 +139,12 @@ Acceptance
 
 ## Phase 3 — Engines
 
+Status: complete. [Validation evidence](validation/engines-2026-09-30.md) records
+Rust command/configuration fixtures, local fake-tool lifecycle tests and native
+FreeBSD race/integration gates. Block-node creation is verified at the syscall
+boundary; real Linux device creation and guest boot remain in phase 7. No native
+VM/container lifecycle is claimed by the fake-tool results.
+
 Deliverables (`internal/engine`)
 
 - `Engine` interface, platform factory, PID recovery and termination helpers.
