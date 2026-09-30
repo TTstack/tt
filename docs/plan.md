@@ -1,7 +1,7 @@
 # Implementation plan — TTstack in Go
 
 Status: reviewed against Rust revision `1ad83a9feed5fac820d74b5e7ef752e50a552740`
-(workspace version 0.6.0); phases 0–3 implemented, later phases pending. This document is the contract for
+(workspace version 0.6.0); phases 0–4 implemented, later phases pending. This document is the contract for
 what will be built, how it maps onto the Rust release, and how each step is verified.
 
 ## 1. Purpose
@@ -27,7 +27,8 @@ Goals:
    modes, SSH bootstrap, offline resource updates, disk backup, image recipes,
    dashboard, local and distributed deployment.
 2. Wire compatibility: identical HTTP routes, JSON documents, status codes, CLI
-   output and exit codes.
+   output and exit codes (with the documented process-specific error diagnostic
+   exception in compatibility §7).
 3. State compatibility: identical SQLite files (schema versions and table layouts),
    identical on-disk runtime paths and identifiers, identical service files.
 4. Idiomatic Go: `cmd/` binaries, `internal/` domain packages, `context`, `net/http`,
@@ -121,7 +122,7 @@ What is given up, and how it is handled:
 Three levels, all in scope:
 
 1. **API level.** Same routes, methods, request/response JSON field names and
-   omission rules, error strings, and HTTP status mapping (including the
+   omission rules, stable business error messages, and HTTP status mapping (including the
    error-string-prefix mapping used by the backup protocol). An unmodified Rust
    `tt` CLI must work against a Go `tt-ctl`, and a Rust `tt-ctl` must be able to
    drive a Go `tt-agent`.

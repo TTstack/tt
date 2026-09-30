@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"unicode/utf8"
@@ -52,4 +53,19 @@ func QuoteJSONString(value string) (string, error) {
 	}
 	data, err := SerdeJSON(value)
 	return string(data), err
+}
+
+// DecodeJSONValue follows serde's Unicode rejection while retaining integer
+// precision in unknown fields that an offline database conversion must preserve.
+func DecodeJSONValue(data []byte) (any, error) {
+	if err := validStrings(data); err != nil {
+		return nil, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	return value, nil
 }

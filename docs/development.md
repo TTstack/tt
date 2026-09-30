@@ -55,6 +55,10 @@ not mean SQLite has no transitive dependencies. Use versions compatible with Go
 | `github.com/BurntSushi/toml` | `deploy.toml` parsing |
 | `golang.org/x/sys/unix` | `flock`, TUN ioctls, `FICLONE`, `statfs` |
 
+The SQLite driver is now imported by the agent. Its required pure-Go indirect
+modules are recorded in `go.mod`; the `modernc.org/libc` module does not introduce
+CGo into production builds. No additional direct dependency was added.
+
 Everything else comes from the standard library. In particular: no CLI framework
 (standard `flag`), no HTTP router (Go 1.22 method patterns), no logging framework
 (`log` to stderr), no assertion library (plain `testing`).

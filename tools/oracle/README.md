@@ -34,3 +34,27 @@ are older than its cache. Dependency artifacts stay cached. The engine mode need
 Go as well as Rust; it introduces no Python dependency. Generation is sequential
 when sharing one Cargo target directory. After the cache fix, all three modes were
 rebuilt on FreeBSD; existing wire/network fixtures were byte-identical.
+
+## Agent state and HTTP
+
+`../build-agent-oracle.sh RUST_CHECKOUT NEW_BUILD_DIRECTORY` builds `agent-db`,
+`agent-http` and the original `upgrade-agent-v5` examples at the pinned revision.
+The destination must be new. Run on an authorized native build host; retain a
+Cargo dependency cache and use two compilation jobs. `agent-db create|v5|check
+PATH` creates or validates synthetic SQLite state using the actual Rust runtime
+DB functions. Set `TT_TEST_AGENT_ORACLE` to this freshly rebuilt `agent-db` binary
+to enable Go's native bidirectional interchange test. Its sibling Rust converter
+must also be present.
+
+`python3 capture-agent-http.py PATH_TO_AGENT_HTTP > OUTPUT_JSON` captures the HTTP
+matrix. On the FreeBSD test host the interpreter command is `python3.11`. The
+oracle starts on a temporary loopback port against private empty SQLite state,
+with no available engines, background reconciliation or host setup. It cannot
+admit guest creation. The capture tool terminates each owned child and removes
+temporary databases. Only synthetic keys/inputs are emitted. Rust's volatile
+`ruc` business-error decoration is explicitly normalized; other body/status/header
+observations remain exact. Normal Go tests require neither Python nor Rust.
+
+The HTTP matrix prompted additional core enum fixtures: serde accepts externally
+tagged unit objects such as `{"qemu":null}`. The current wire fixture contains
+1,677 cases, and the HTTP fixture contains 174 cases.

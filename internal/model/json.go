@@ -266,3 +266,44 @@ func validStrings(data []byte) error {
 	}
 	return nil
 }
+
+// Serde's externally tagged unit enums accept a canonical string or exactly one
+// canonical variant key with a null value. Serialization always emits a string.
+func decodeUnitVariant(data []byte) (string, error) {
+	if err := validStrings(data); err != nil {
+		return "", err
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
+	token, err := d.Token()
+	if err != nil {
+		return "", err
+	}
+	if name, ok := token.(string); ok {
+		return name, nil
+	}
+	if token != json.Delim('{') || !d.More() {
+		return "", fmt.Errorf("expected enum variant")
+	}
+	token, err = d.Token()
+	if err != nil {
+		return "", err
+	}
+	name, ok := token.(string)
+	if !ok {
+		return "", fmt.Errorf("expected enum variant")
+	}
+	var value json.RawMessage
+	if err := d.Decode(&value); err != nil {
+		return "", err
+	}
+	if !bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		return "", fmt.Errorf("expected unit variant")
+	}
+	if d.More() {
+		return "", fmt.Errorf("expected a single enum variant")
+	}
+	if _, err := d.Token(); err != nil {
+		return "", err
+	}
+	return name, nil
+}
