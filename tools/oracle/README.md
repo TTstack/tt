@@ -58,3 +58,17 @@ observations remain exact. Normal Go tests require neither Python nor Rust.
 The HTTP matrix prompted additional core enum fixtures: serde accepts externally
 tagged unit objects such as `{"qemu":null}`. The current wire fixture contains
 1,677 cases, and the HTTP fixture contains 174 cases.
+
+## Controller state and HTTP
+
+`../build-ctl-oracle.sh RUST_CHECKOUT NEW_BUILD_DIRECTORY` builds the original
+controller binary and the `ctl-db` example. `ctl-db create|v4|check PATH` creates
+synthetic state or opens it using the actual Rust controller DB methods. Set
+`TT_TEST_CTL_ORACLE` to the rebuilt example to enable native Go/Rust database and
+migration interchange tests.
+
+`python3 capture-ctl-http.py PATH_TO_TT_CTL > OUTPUT_JSON` captures 52 cases against
+private empty state. It starts only a loopback service, registers no hosts and
+cannot schedule a guest. The dashboard body is represented by a marker in this
+fixture and separately pinned by its original source digest. Volatile Rust error
+decoration is normalized using the same rule as the agent oracle.

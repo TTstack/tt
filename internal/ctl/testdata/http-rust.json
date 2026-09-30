@@ -1,0 +1,781 @@
+{
+  "revision": "1ad83a9feed5fac820d74b5e7ef752e50a552740",
+  "cases": [
+    {
+      "method": "GET",
+      "path": "/",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "allow": null,
+      "csp": "frame-ancestors 'none'",
+      "frame": "DENY",
+      "body": "<PINNED_DASHBOARD>",
+      "normalized_ruc": false
+    },
+    {
+      "method": "HEAD",
+      "path": "/",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "allow": null,
+      "csp": "frame-ancestors 'none'",
+      "frame": "DENY",
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 405,
+      "content_type": null,
+      "allow": "GET,HEAD",
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/missing",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": null,
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/hosts",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":true,\"data\":[]}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/hosts",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 405,
+      "content_type": null,
+      "allow": "GET,HEAD,POST",
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/hosts/absent",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"host not found: absent\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/hosts/absent",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":true}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/hosts/absent/detach",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"host not found\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/envs",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":true,\"data\":[]}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/envs/absent",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"environment not found: absent\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/envs/absent",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":true,\"data\":null}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs/absent/start",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"environment not found: absent\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs/absent/stop",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"environment not found: absent\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/vms/absent",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"VM not found: absent\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/images",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":true,\"data\":[]}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/status",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":true,\"data\":{\"hosts\":0,\"hosts_online\":0,\"total_vms\":0,\"total_envs\":0,\"cpu_total\":0,\"cpu_used\":0,\"mem_total\":0,\"mem_used\":0,\"disk_total\":0,\"disk_used\":0}}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/envs/",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": null,
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api//envs",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": null,
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/envs/%ff",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 400,
+      "content_type": "text/plain; charset=utf-8",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "Invalid URL: Invalid UTF-8 in `id`",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/vms/absent/backup",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"not found: VM\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/vms/absent/backup",
+      "input": null,
+      "headers": {},
+      "api_key": null,
+      "status": 428,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"missing precondition: Idempotency-Key required\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/hosts",
+      "input": "{}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 422,
+      "content_type": "text/plain; charset=utf-8",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "Failed to deserialize the JSON body into the target type: missing field `addr` at line 1 column 2",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/hosts",
+      "input": "{\"addr\":\"localhost\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"agent address must be host:port\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/hosts",
+      "input": "{\"addr\":\"localhost:80\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"agent address must be host:port\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/hosts",
+      "input": "{\"addr\":\"user@localhost:9100\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"agent address must be host:port\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/hosts",
+      "input": "{\"addr\":\"localhost:65536\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"agent address must be host:port\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/hosts",
+      "input": "{\"addr\":\"localhost:9100/path\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"agent address must be host:port\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs",
+      "input": "{}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 422,
+      "content_type": "text/plain; charset=utf-8",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "Failed to deserialize the JSON body into the target type: missing field `id` at line 1 column 2",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs",
+      "input": "null",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 422,
+      "content_type": "text/plain; charset=utf-8",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "Failed to deserialize the JSON body into the target type: invalid type: null, expected struct CreateEnvReq at line 1 column 4",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs",
+      "input": "{\"id\":\"test\",\"vms\":[]}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"an environment must contain 1..=1000 VMs\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs",
+      "input": "{\"id\":\"test\",\"vms\":[{\"image\":\"ubuntu\"}]}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 422,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"no online hosts available\"}",
+      "normalized_ruc": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs",
+      "input": "{\"id\":\"test\",\"vms\":[{\"image\":\"ubuntu\",\"cpu\":0}]}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"cpu, memory and disk must be > 0 when specified\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs",
+      "input": "{\"id\":\"bad/name\",\"vms\":[{\"image\":\"ubuntu\"}]}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"environment contains invalid characters (only a-z, A-Z, 0-9, '-', '_', '.' allowed)\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/envs",
+      "input": "{\"id\":\"test\",\"vms\":[{\"image\":\"ubuntu\",\"ports\":[0]}]}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"port must be between 1 and 65535\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/vms/absent/resources",
+      "input": "{}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 422,
+      "content_type": "text/plain; charset=utf-8",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "Failed to deserialize the JSON body into the target type: missing field `cpu` at line 1 column 2",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/vms/absent/resources",
+      "input": "{\"cpu\":1,\"mem\":128,\"disk\":16}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 404,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"VM not found\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/vms/absent/resources",
+      "input": "{\"cpu\":0,\"mem\":128,\"disk\":16}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 400,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"cpu, memory and root disk must be > 0\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/vms/absent/backup/restore",
+      "input": "{}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 422,
+      "content_type": "text/plain; charset=utf-8",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "Failed to deserialize the JSON body into the target type: missing field `generation` at line 1 column 2",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/vms/absent/backup/restore",
+      "input": "{\"generation\":\"bad\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "api_key": null,
+      "status": 428,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"missing precondition: Idempotency-Key required\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "input": null,
+      "headers": {},
+      "api_key": "fixture-key",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "allow": null,
+      "csp": "frame-ancestors 'none'",
+      "frame": "DENY",
+      "body": "<PINNED_DASHBOARD>",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "input": null,
+      "headers": {
+        "Authorization": "Bearer fixture-key"
+      },
+      "api_key": "fixture-key",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "allow": null,
+      "csp": "frame-ancestors 'none'",
+      "frame": "DENY",
+      "body": "<PINNED_DASHBOARD>",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "input": null,
+      "headers": {},
+      "api_key": "fixture-key",
+      "status": 405,
+      "content_type": null,
+      "allow": "GET,HEAD",
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "input": null,
+      "headers": {
+        "Authorization": "Bearer fixture-key"
+      },
+      "api_key": "fixture-key",
+      "status": 405,
+      "content_type": null,
+      "allow": "GET,HEAD",
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/missing",
+      "input": null,
+      "headers": {},
+      "api_key": "fixture-key",
+      "status": 401,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"invalid or missing API key\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/missing",
+      "input": null,
+      "headers": {
+        "Authorization": "Bearer fixture-key"
+      },
+      "api_key": "fixture-key",
+      "status": 404,
+      "content_type": null,
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/hosts",
+      "input": null,
+      "headers": {},
+      "api_key": "fixture-key",
+      "status": 401,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"invalid or missing API key\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/hosts",
+      "input": null,
+      "headers": {
+        "Authorization": "Bearer fixture-key"
+      },
+      "api_key": "fixture-key",
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":true,\"data\":[]}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/hosts",
+      "input": null,
+      "headers": {},
+      "api_key": "fixture-key",
+      "status": 401,
+      "content_type": "application/json",
+      "allow": "GET,HEAD,POST",
+      "csp": null,
+      "frame": null,
+      "body": "{\"ok\":false,\"error\":\"invalid or missing API key\"}",
+      "normalized_ruc": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/hosts",
+      "input": null,
+      "headers": {
+        "Authorization": "Bearer fixture-key"
+      },
+      "api_key": "fixture-key",
+      "status": 405,
+      "content_type": null,
+      "allow": "GET,HEAD,POST",
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/envs",
+      "input": null,
+      "headers": {},
+      "api_key": "fixture-key",
+      "status": 401,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/envs",
+      "input": null,
+      "headers": {
+        "Authorization": "Bearer fixture-key"
+      },
+      "api_key": "fixture-key",
+      "status": 200,
+      "content_type": "application/json",
+      "allow": null,
+      "csp": null,
+      "frame": null,
+      "body": "",
+      "normalized_ruc": false
+    }
+  ]
+}

@@ -152,6 +152,7 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 		<-serving
 	case err := <-serving:
 		stopBackground()
+		_ = httpServer.Shutdown(context.Background())
 		if err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(stderr, "Server error: %v\n", err)
 		}

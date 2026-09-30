@@ -2,10 +2,14 @@
 package ctl
 
 import (
+	"context"
 	_ "embed"
 	"flag"
+	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/TTstack/tt/internal/commandline"
 )
@@ -14,9 +18,10 @@ import (
 var help string
 
 type Config struct {
-	Listen  string
-	DataDir string
-	APIKey  string
+	Listen     string
+	DataDir    string
+	APIKey     string
+	keyPresent bool
 }
 
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -25,5 +30,39 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&cfg.Listen, "listen", "0.0.0.0:9200", "Listen address for the HTTP API")
 	fs.StringVar(&cfg.DataDir, "data-dir", "/home/ttstack/ctl", "Directory for persistent state")
 	fs.StringVar(&cfg.APIKey, "api-key", os.Getenv("TT_API_KEY"), "API key for authentication")
-	return commandline.Stub(fs, args, help, stdout, stderr)
+	fs.SetOutput(stderr)
+	var showHelp, version bool
+	fs.BoolVar(&showHelp, "h", false, "Print help")
+	fs.BoolVar(&showHelp, "help", false, "Print help")
+	fs.BoolVar(&version, "V", false, "Print version")
+	fs.BoolVar(&version, "version", false, "Print version")
+	fs.Usage = func() { fmt.Fprint(stderr, help) }
+	if err := commandline.CheckFlags(fs, args); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if showHelp {
+		fmt.Fprint(stdout, help)
+		return 0
+	}
+	if version {
+		fmt.Fprintf(stdout, "tt-ctl %s\n", commandline.Version)
+		return 0
+	}
+	if len(fs.Args()) > 0 {
+		fmt.Fprintf(stderr, "error: unexpected argument '%s' found\n", fs.Args()[0])
+		return 2
+	}
+	_, cfg.keyPresent = os.LookupEnv("TT_API_KEY")
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "api-key" {
+			cfg.keyPresent = true
+		}
+	})
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	return serveController(ctx, cfg, stderr)
 }

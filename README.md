@@ -5,11 +5,12 @@
 containers across a small fleet of hosts. Workloads are grouped into environments,
 have a lifetime, and can be stopped, restarted, resized and deleted.
 
-This repository is a work in progress. **Phases 0–4 provide shared contracts,
-storage, networking, engines and the agent service**. `tt-agent` and the offline
-v5 converter are implemented; `tt` and `tt-ctl` remain help/version stubs. Native
-FreeBSD service/state checks pass; real guest and mixed-fleet acceptance remains
-in the [roadmap](docs/roadmap.md). See the [agent HTTP API](docs/rest-api.md).
+This repository is a work in progress. **Phases 0–5 provide shared contracts,
+storage, networking, engines, the agent and the controller**. `tt-agent`, `tt-ctl`
+and the offline v5 converter are implemented; `tt` remains a help/version stub.
+Native FreeBSD Go/Rust service and database interoperability checks pass; CLI and
+real-guest acceptance remains in the [roadmap](docs/roadmap.md). See the
+[HTTP API](docs/rest-api.md).
 
 ## Why Go
 
