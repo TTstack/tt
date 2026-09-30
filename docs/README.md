@@ -38,3 +38,7 @@ When Go code or these documents disagree with that oracle, fix the incorrect cod
 or document; implemented Go behavior does not automatically override the contract.
 Approved implementation substitutions are listed in compatibility §7 and must
 preserve the observable contract.
+
+## Validation evidence
+
+- [Shared-core parity, 2026-09-30](validation/shared-core-2026-09-30.md): Rust wire fixtures, bounded commands, native FreeBSD race/integration checks and limits.
