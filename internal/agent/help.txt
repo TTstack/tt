@@ -1,0 +1,43 @@
+TTstack host agent — manages VMs and containers on this host
+
+Usage: tt-agent [OPTIONS]
+
+Options:
+      --enable-disk-backup
+          Admit explicit lightweight disk backup creation/refresh (default: disabled)
+      --container-runtime <CONTAINER_RUNTIME>
+          Container runtime for this inventory; persisted after the first selection [env: TT_CONTAINER_RUNTIME=]
+      --ssh-public-address <SSH_PUBLIC_ADDRESS>
+          Client-reachable IPv4 address advertised for VM SSH
+      --ssh-ingress-netns <SSH_INGRESS_NETNS>
+          Optional outer network namespace containing that address
+      --ssh-ingress-target <SSH_INGRESS_TARGET>
+          This agent namespace's address reachable from the outer namespace
+      --port-start <PORT_START>
+          First TCP host port; use disjoint ranges when sharing public SSH ingress [default: 20000]
+      --port-end <PORT_END>
+          Last TCP host port (inclusive) [default: 65535]
+      --listen <LISTEN>
+          Listen address for the HTTP API [default: 0.0.0.0:9100]
+      --image-dir <IMAGE_DIR>
+          Base image directory (file) or dataset (zvol); excludes Docker images [default: /home/ttstack/images]
+      --runtime-dir <RUNTIME_DIR>
+          Runtime clone directory (file) or dataset (zvol) [default: /home/ttstack/runtime]
+      --data-dir <DATA_DIR>
+          Directory for persistent state (SQLite database) [default: /home/ttstack/data]
+      --storage <STORAGE>
+          Storage backend: file or zvol [default: file]
+      --cpu-total <CPU_TOTAL>
+          Total CPU cores available for VMs (0 = auto-detect) [default: 0]
+      --mem-total <MEM_TOTAL>
+          Total memory for VMs in MiB (0 = auto-detect) [default: 0]
+      --disk-total <DISK_TOTAL>
+          Disk scheduling budget in MiB (default 200 GiB); not auto-detected or a quota [default: 204800]
+      --host-id <HOST_ID>
+          Unique host identifier (generated once and persisted if not set)
+      --api-key <API_KEY>
+          API key for authentication. If set, all API requests must include `Authorization: Bearer <key>`. Can also be provided via TT_API_KEY env var [env: TT_API_KEY=]
+  -h, --help
+          Print help
+  -V, --version
+          Print version

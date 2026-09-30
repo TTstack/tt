@@ -1,0 +1,21 @@
+name: Go
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GOMAXPROCS: '2'
+      TT_TEST_INTEGRATION: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - run: sudo apt-get update && sudo apt-get install -y e2fsprogs openssh-client
+      - run: make lint
+      - run: make build
+      - run: make test
+      - run: go test -race -p 1 ./...
+      - run: make cross
