@@ -79,6 +79,10 @@ Acceptance
 
 ## Phase 1 — Shared core
 
+Status: complete. [Validation evidence](validation/shared-core-2026-09-30.md)
+records 1,642 Rust cases, minimum-toolchain gates and native FreeBSD race/integration
+checks. Linux engine and database acceptance remains in its owning later phases.
+
 Deliverables (`internal/model`, `api`, `capability`, `backup`, `guestconfig`,
 `sshboot`, `auth`, `runcmd`)
 

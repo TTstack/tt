@@ -92,6 +92,11 @@ suffix `_other.go` does not select an OS in Go: fallback files require explicit
 `//go:build !linux && !freebsd` constraints. Cross-build all four binaries for
 Linux/amd64 and FreeBSD/amd64; native execution remains platform-gated.
 
+The guest-config disk builder's file/tool mechanics are private shared code so
+its ext4 contents and publication can be tested on the dedicated FreeBSD build
+host using e2fsprogs. The public `WriteDisk` entry point remains Linux-only;
+passing these utility tests does not enable Firecracker on FreeBSD.
+
 ## 3. Data model
 
 The entities (see [compatibility.md](compatibility.md) for exact JSON) are:

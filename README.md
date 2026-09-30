@@ -5,7 +5,7 @@
 containers across a small fleet of hosts. Workloads are grouped into environments,
 have a lifetime, and can be stopped, restarted, resized and deleted.
 
-This repository is a work in progress. **Phase 0 provides build tooling and command-line skeletons**. The binaries
+This repository is a work in progress. **Phases 0–1 provide build tooling and the shared core**. The binaries
 currently expose help/version only and refuse service startup; implementation
 continues in phases described in [docs/roadmap.md](docs/roadmap.md).
 
@@ -38,8 +38,9 @@ The Go implementation targets **full wire compatibility** with the Rust release:
 - the same host-local contracts that survive a binary swap (tap names, bridge
   addresses, runtime paths, systemd units, key files).
 
-A Rust controller can therefore talk to a Go agent, and a Go controller can adopt
-an existing fleet, as long as both sides are on compatible schema versions.
+The completed port is intended to let a Rust controller talk to a Go agent and a
+Go controller manage a compatible fleet. This interoperability still requires the
+service implementations and acceptance tests in the roadmap.
 The exact contract is written down in [docs/compatibility.md](docs/compatibility.md).
 
 ## Architecture
@@ -58,9 +59,8 @@ tt CLI / Browser → HTTP → tt-ctl → HTTP → tt-agent (one per host)
 | `tt-agent` | Host-local VM/container lifecycle, storage and networking |
 
 Linux x86_64 is the supported host platform with QEMU/KVM, Firecracker and
-Docker/Podman. The experimental FreeBSD bhyve/Jail paths are ported as well and
-are runtime-gated the same way the Rust implementation gates them (native host
-only, manual setup, limited validation).
+Docker/Podman. The planned experimental FreeBSD bhyve/Jail paths use the same native-host
+gates as Rust, with manual setup and limited validation.
 
 ## Building
 

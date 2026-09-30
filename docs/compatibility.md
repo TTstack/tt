@@ -51,9 +51,18 @@ truth, and each wire type gets a golden fixture in this repository.
 
 Codecs must also preserve exact field-name matching and duplicate-known-field
 rejection. Go's default case-insensitive field matching, last-key-wins decoding,
-null-to-zero handling and invalid-UTF-8 replacement are not serde parity. Unknown
+null-to-zero handling and invalid-UTF-8 replacement for decoded strings are not
+serde parity. Unknown
 fields remain allowed on types without `deny_unknown_fields`; do not globally
 enable strict rejection. HTTP bodies must contain exactly one JSON value.
+Rust skips the values of unknown fields rather than decoding them as typed
+strings; differential fixtures include ignored unpaired-surrogate escapes.
+
+serde also accepts positional arrays for these derived structs. Their positions
+follow Rust declaration order, including fields omitted by serialization. Missing
+trailing fields use only explicit defaults; an `Option` field without a default
+must occupy its position, even though it may be absent in object input. Output
+remains an object. Positive and negative sequence fixtures fix this behavior.
 
 Examples of non-zero defaults: absent `VmSpec.engine` means `qemu`; absent
 `Vm.backup` creates a complete backup state with a fresh UUID revision. A present
@@ -64,6 +73,8 @@ required fields. Apply these rules in persistence as well as HTTP codecs.
 ### Enums
 
 JSON accepts **canonical lowercase names only**; aliases exist only in CLI parsing.
+CLI case folding is ASCII-only, matching Rust `to_ascii_lowercase`; Unicode lookalikes
+are not aliases.
 
 | Type | JSON values | CLI aliases (not JSON) |
 |---|---|---|
@@ -87,7 +98,8 @@ row with a log line.
 - MiB units for memory and disk; ports are unsigned 16-bit.
 - `port_map` is a JSON object (`{"22":20000}`) mapping guest port → host port.
   Use `map[uint16]uint16` and a compatible key decoder: Rust parses keys as u16,
-  so arbitrary strings and out-of-range values are invalid. Ordering is irrelevant
+  so arbitrary strings, leading zeroes, escaped digits and out-of-range values
+  are invalid. Ordering is irrelevant
   to JSON semantics; CLI/rule construction must explicitly sort numeric ports.
 - Saturating arithmetic is preserved everywhere reservations are computed.
 
@@ -145,6 +157,11 @@ Status overview (endpoint-specific, not one global error classifier):
 | Creation accepted | 202 |
 | Agent creation capability rejection | 400 (agent) |
 | Other agent create/start/stop/delete errors | 500 (agent) |
+
+Backup UUIDs accept the Rust parser's hyphenated, simple-hex, brace-wrapped and
+lowercase `urn:uuid:` forms. Hex digits may use either case; arbitrary wrappers
+and uppercase URN prefixes are invalid. Validate this explicitly: Go's UUID parser
+is more permissive for wrappers and URN prefix casing.
 
 Backup mutations additionally carry `Idempotency-Key` (UUID) and `If-Match`
 (quoted revision UUID), and the agent answers with `X-TT-Backup-Settled` /
