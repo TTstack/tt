@@ -1,6 +1,7 @@
 # Implementation plan — TTstack in Go
 
-Status: approved; implementation has not started. This document is the contract for
+Status: reviewed against Rust revision `1ad83a9feed5fac820d74b5e7ef752e50a552740`
+(workspace version 0.6.0); implementation has not started. This document is the contract for
 what will be built, how it maps onto the Rust release, and how each step is verified.
 
 ## 1. Purpose
@@ -8,7 +9,10 @@ what will be built, how it maps onto the Rust release, and how each step is veri
 TTstack is a lightweight private cloud for developers and small teams: a CLI
 (`tt`), a controller (`tt-ctl`) and a per-host agent (`tt-agent`) that together
 create, access, stop, restart and delete VMs and containers on a small fleet.
-The Rust workspace at `../TTstack` is the reference implementation.
+The Rust workspace at `../TTstack` is the reference implementation. The revision
+above freezes this delivery's oracle; fixtures and live reports must record it.
+Changes in the reference during delivery require an explicit compatibility review,
+not silent regeneration of expected results.
 
 This repository re-implements the same product in Go, with the same observable
 behavior, the same API, and the same persistent state format, so that the two
@@ -19,7 +23,7 @@ taken over by the Go binaries without data conversion.
 
 Goals:
 
-1. Feature parity with the Rust release: all engines, storage backends, networking
+1. Feature parity with the pinned Rust release: all engines, storage backends, networking
    modes, SSH bootstrap, offline resource updates, disk backup, image recipes,
    dashboard, local and distributed deployment.
 2. Wire compatibility: identical HTTP routes, JSON documents, status codes, CLI
@@ -29,7 +33,8 @@ Goals:
 4. Idiomatic Go: `cmd/` binaries, `internal/` domain packages, `context`, `net/http`,
    `database/sql`, table-driven tests. Structure follows Go practice, not the Rust
    module tree.
-5. Minimal dependencies: the standard library plus four modules (see §6).
+5. Minimal dependencies: the standard library plus four direct modules (see §6).
+   Their required transitive dependencies are pinned in `go.mod`/`go.sum` too.
 
 Non-goals (matching the Rust product boundaries):
 
@@ -45,18 +50,16 @@ Non-goals (matching the Rust product boundaries):
 TTstack is a control plane, not a compute engine. It schedules workloads, keeps
 state in SQLite, serves HTTP, drives hypervisors and container runtimes through
 their CLIs and devices, and manages files, ZFS snapshots and firewall rules. The
-CPU-intensive work happens inside the guests; nothing in TTstack itself is
-CPU-bound. The hot paths are process spawns, syscalls and network/database
-waits, where Go's performance is equivalent for all practical purposes, and
-where a systems language's zero-cost abstractions and manual memory control buy
-nothing. The language choice is therefore driven by engineering properties:
+guest workload does not run inside the control-plane process. Most expected
+control-plane work is process management and network/database waits; this makes
+Go a reasonable fit, but does not establish equal latency or memory use without
+measurement. The language choice is driven by engineering properties:
 
 1. **Build and iteration time.** The Rust workspace pulls in tokio, axum,
    reqwest with rustls/AWS-LC and a bundled SQLite, so a clean release build
-   takes minutes and needs a C/C++ toolchain. The Go tree compiles in seconds,
-   and the SQLite driver is pure Go, so no native build dependency is needed at
-   all. For an operations tool that is rebuilt and redeployed across a small
-   fleet on most changes, that difference is felt every iteration.
+   needs a C/C++ toolchain. The Go SQLite driver is pure Go, removing that native
+   build dependency. Faster iteration is an expected benefit; build-time claims
+   require comparable clean and incremental measurements once the port exists.
 
 2. **Cross-compilation for the fleet.** `GOOS=linux|freebsd GOARCH=amd64 go
    build` produces any target from any machine with no cross toolchain. This
@@ -68,14 +71,15 @@ nothing. The language choice is therefore driven by engineering properties:
 3. **Self-contained static binaries.** A Go build can be one statically linked
    executable with no libc or shared-library coupling, which is exactly what the
    deployment path needs: copy the file over SSH, verify it, restart the
-   service. There is no build-host/fleet-host runtime drift to reason about.
+   service. Release builds explicitly use `CGO_ENABLED=0`; kernel ABI support,
+   external engine tools, certificates and host prerequisites still matter.
 
 4. **A complete standard library.** Server and client HTTP (including redirect
    control and Unix-socket transports), JSON, database/sql, process execution,
    hashing, filesystem handling, flags and `httptest` all ship with the
    toolchain. The Rust release needs roughly ten external crates plus native
    dependencies for the same surface; the Go port keeps a closed set of four
-   modules (see §6).
+   direct modules plus their transitive dependencies (see §6).
 
 5. **A concurrency model that matches the problem.** The system is many
    concurrent, mostly-waiting operations: per-environment mutation locks, 15 s
@@ -96,8 +100,9 @@ What is given up, and how it is handled:
   boundary, the same conservative lifetime rules as the reference, and golden
   fixtures. Crucially, the Rust implementation is the behavioral oracle, so
   parity is *verified* against a running reference rather than argued from types.
-- Garbage collection and runtime overhead are irrelevant in this role: a few
-  MiB per service process, against hosts whose guest memory is measured in GiB.
+- Garbage collection and runtime overhead must fit the control-plane workload.
+  The port has no measured memory or latency baseline yet; bounded functional
+  validation checks practical behavior without claiming benchmark equivalence.
 
 ## 4. Confirmed decisions
 
@@ -106,7 +111,7 @@ What is given up, and how it is handled:
 | Compatibility target | Full wire compatibility, including SQLite schema versions v5 (controller) and v6 (agent) |
 | FreeBSD engines | Ported (`bhyve`, `jail`, PF paths), runtime-gated to FreeBSD hosts exactly as in Rust |
 | Dependencies | Standard library + `modernc.org/sqlite`, `github.com/google/uuid`, `github.com/BurntSushi/toml`, `golang.org/x/sys` |
-| Delivery | Phased (0–7), each phase builds, vets, tests and is committed separately |
+| Delivery | Phased (0–7), each phase builds, vets, tests and is committed separately; prerequisite plan corrections are a separate documentation commit |
 | Documentation language | English (this repository), same convention as TTstack |
 | Author metadata | `fh <hui.fan@mail.ru>`, matching TTstack |
 | Module path | `github.com/TTstack/tt` |
@@ -128,7 +133,7 @@ Three levels, all in scope:
 3. **Host-visible identifiers.** Names that outlive a process or are shared with
    the host kernel must be produced bit-exactly: TAP names (`tt-` + 12 hex digits
    from a frozen SipHash-1-3 over the VM id plus a `0xff` terminator), guest MAC
-   addresses (`02:54:a.b.c.d` from the guest IPv4), bridge `tt0`/`10.10.0.1/16`,
+   addresses (`02:54:aa:bb:cc:dd`, hexadecimal IPv4 octets), bridge `tt0`/`10.10.0.1/16`,
    nftables tables/chains, cgroup names and jailer UIDs, PID/log/socket file
    names, and systemd unit names.
 
@@ -143,7 +148,7 @@ Details, field by field, are in [compatibility.md](compatibility.md).
 | Async runtime | Tokio | goroutines, `context.Context`, channels; a small counting semaphore type |
 | Database | rusqlite (bundled SQLite) | `database/sql` + `modernc.org/sqlite` (pure Go, no cgo) |
 | CLI parsing | clap | standard `flag` with an explicit subcommand tree |
-| JSON | serde | `encoding/json` with custom marshal/unmarshal for enums and omission rules |
+| JSON | serde | `encoding/json` with explicit presence/default/null validation and per-type codecs; see compatibility §2 |
 | TOML | toml crate | `github.com/BurntSushi/toml` |
 | UUID | uuid crate | `github.com/google/uuid` |
 | SHA-256 | sha2 crate | `crypto/sha256` |
@@ -196,6 +201,11 @@ tt/
 └── .github/workflows/ # CI
 ```
 
+Wire structures embedded by entities live in the leaf `model` package to avoid
+Go import cycles. `backup`, `capability`, `guestconfig` and `sshboot` own behavior;
+`api` owns transport wrappers, including the backup view. The concrete dependency
+direction is specified in [architecture.md](architecture.md#2-package-layout).
+
 Package-by-package responsibilities and the Rust mapping are in
 [architecture.md](architecture.md) and [mapping.md](mapping.md).
 
@@ -218,27 +228,37 @@ all clean, and its own commit. Details and acceptance criteria per phase are in
 
 ## 9. Verification strategy
 
-1. **Golden JSON fixtures.** For every wire type, the Rust build emits canonical
-   JSON (including omission/null edge cases); Go tests decode and re-encode it and
-   compare byte-for-byte. Fixtures live in `internal/<pkg>/testdata` and are
-   regenerated only by a documented command.
-2. **Golden SQLite fixtures.** A Rust-created `ctl.db` (v5) and `agent.db` (v6)
-   are opened by the Go code; rows must round-trip unchanged.
+1. **Golden JSON fixtures.** A checked-in harness built against the pinned Rust
+   source emits each wire type and accepted/rejected decode cases, including
+   missing/null/default/empty values. Compare JSON semantically, preserving
+   integer precision and distinguishing missing, null, empty arrays and objects.
+   Compare bytes only where bytes are contractual: CLI text, generated scripts,
+   identifiers and guest-config digest input. Fixtures carry oracle provenance
+   and are regenerated by a documented command, never during normal Go tests.
+2. **SQLite interoperability.** Commit synthetic SQL/JSON fixture exports and
+   their Rust generator, not database binaries. Go-only tests reconstruct temporary
+   databases. Separate differential checks create real Rust databases, let Go read
+   and mutate them, and reopen them in Rust; check both schema gates and migrations.
 3. **Behavioral unit tests.** Port the Rust unit tests that encode contracts
    (scheduler placement, capability admission, backup replay, validation,
    SipHash vectors, ext4 growth).
 4. **Mock-agent workflow tests.** `httptest` servers stand in for agents to
    exercise creation timeouts, partial deletion, expiry, detach and resize
    recovery end to end, mirroring the Rust controller's test coverage.
-5. **Live checks (authorized hosts only).** Phase 7 smoke tests boot one QEMU and
-   one Docker workload per implementation pairing. Bounded, cleaned up, no stress
-   testing, never against production guests.
+5. **Live checks (authorized hosts only).** Phase 7 checks QEMU and Docker in both
+   controller/agent pairings, plus Firecracker/config-disk/jailer and eligible
+   backup backends. Each operation is tested only on engines that support it;
+   Docker is not a resize/backup substitute. FreeBSD compiles in CI and remains
+   experimental; native cases and unavailable prerequisites are reported explicitly.
+   Fixed bridge, firewall and run paths require host/namespace isolation as well
+   as distinct data directories. Tests are bounded, cleaned up and never disturb
+   pre-existing workloads. See the roadmap for the acceptance matrix.
 
 ## 10. Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Silent JSON drift (omission/null rules differ from serde) | Golden fixtures per type; a test fails on any byte difference |
+| Silent JSON drift (presence/default/null rules differ from serde) | Rust-generated positive and negative decode fixtures, semantic round trips and byte checks for hashed content |
 | SipHash-1-3 tap names differ | Port the algorithm with the Rust test vectors as unit tests |
 | SQLite driver differences (`modernc.org/sqlite`) | Use identical pragmas; verify with Rust-created fixture databases; single-writer discipline |
 | Rust `error`-string → HTTP status coupling | Centralize mapping in one table mirrored from `core/src/backup.rs`; tests enumerate every prefix |
@@ -249,10 +269,16 @@ all clean, and its own commit. Details and acceptance criteria per phase are in
 
 The port is complete when:
 
-1. `make build`, `make test`, `make lint` are clean and CI is green.
-2. Golden fixture tests cover every wire type and both database schemas.
+1. `make build`, `make test`, `make lint` are clean; Linux race tests and Linux/
+   FreeBSD cross-builds pass. CI is green when available; lack of remote CI access
+   is reported, never represented as a green run.
+2. Golden fixture tests cover every wire type and both database schemas, with
+   differential tests against the pinned Rust build in both directions.
 3. The CLI reference commands in `README.md` work end to end on a Linux systemd host.
 4. A Rust controller can drive a Go agent and a Go CLI can drive a Rust controller
    on the same schema versions (phase 7 evidence recorded in `docs/validation/`).
 5. Every feature listed in the Rust `README.md` "Core behavior and boundaries"
    section has a corresponding implementation and a test.
+6. No stubs remain in deliverable commands or supported operations. Missing host
+   prerequisites produce explicit unverified acceptance items, not silent skips
+   counted as successful live validation.

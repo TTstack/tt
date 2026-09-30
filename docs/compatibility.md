@@ -2,6 +2,8 @@
 
 This document is normative for the Go port. Where the Go code and this document
 disagree, one of them is a bug. Reference paths point into `../TTstack`.
+The oracle is revision `1ad83a9feed5fac820d74b5e7ef752e50a552740` (0.6.0),
+as pinned in [plan.md](plan.md). Rust source wins over an incorrect plan statement.
 
 ## 1. Scope
 
@@ -18,30 +20,46 @@ operators and scripts depend on them.
 
 ## 2. JSON rules (serde → Go)
 
-serde has three behaviors that Go's `encoding/json` does not reproduce by default.
+serde has behaviors that Go's `encoding/json` does not reproduce by default.
 Every wire struct must follow them:
 
 | serde attribute | Meaning | Go implementation |
 |---|---|---|
-| `#[serde(default)]` on a field | Missing input is allowed; the field's default is used | Acceptable by default; only relevant when input validation must reject absence |
+| `#[serde(default)]` on a field | Missing input uses its default; explicit null is not a missing non-optional field | Presence-aware decoding; use the Rust default, not automatically Go's zero value |
 | `skip_serializing_if = "Option::is_none"` | Omitted from output when absent | `json:"name,omitempty"` on a pointer field |
 | `skip_serializing_if = "Vec::is_empty"` / `"BTreeMap::is_empty"` | Omitted from output when empty | `json:"name,omitempty"` on a slice/map field |
 | none of the above on `Option<T>` | Field is **always present**, `null` when absent | pointer field **without** `omitempty` |
-| none of the above on `Vec`/`BTreeMap` | Always present, `[]`/`{}` when empty | slice/map **without** `omitempty` |
-| `deny_unknown_fields` | Unknown input keys are an error | decode with `json.Decoder.DisallowUnknownFields()` |
+| none of the above on `Vec`/`BTreeMap` | Always present, `[]`/`{}` when empty; null is invalid input | Non-nil empty slice/map plus explicit null checks, **without** `omitempty` |
+| non-optional field without a default | Required on input, even when its zero value is meaningful | Track presence; ordinary Go decoding silently accepts missing fields |
+| `deny_unknown_fields` | Unknown input keys are an error | Enforce in that type's codec, including nested objects and database decoding |
 | `rename_all = "lowercase"` / `"snake_case"` | Enum/label spelling | custom `MarshalJSON`/`UnmarshalJSON` per enum |
 
 Fields that are **always present and nullable** today (they must not gain
 `omitempty`): `Host.error`, `Env.error`, `Vm.error`, `Pending.error`,
-`Receipt.error`, `Status.reason`, `Generation.*` scalars, `View.unsupported_reason`.
+`Receipt.error`, `Status.reason`, `View.unsupported_reason`, `Request.generation`,
+the optional fields of `backup.State`, and `VmSpec.cpu/mem/disk`.
+`Generation` has no optional fields: all its scalars are required and non-null.
 Fields that are **omitted when absent**: `Host.capability_report`, `Vm.ssh`,
 `Vm.pending_resources`, `VmOptions.ssh`, `VmOptions.guest_config_digest`,
 `SshInfo.observation_error`, `AgentInfo.capability_report`, `AgentInfo.vms`,
 `ApiResp.data`, `ApiResp.error`, and every `Vec`/map that has an emptiness rule
-(`warnings`, `ssh_keys`, `guest_config`, `evidence`, `retired` is **not** skippable).
+(`warnings`, request `ssh_keys`, `guest_config`, `evidence`). In contrast,
+`VmOptions.ssh_keys`, `VmOptions.ports` and `State.retired` are always present.
 When in doubt, read the field's attributes in `crates/core/src/model.rs`,
 `api.rs`, `capability.rs`, `backup.rs` and `ssh.rs`; those files are the source of
 truth, and each wire type gets a golden fixture in this repository.
+
+Codecs must also preserve exact field-name matching and duplicate-known-field
+rejection. Go's default case-insensitive field matching, last-key-wins decoding,
+null-to-zero handling and invalid-UTF-8 replacement are not serde parity. Unknown
+fields remain allowed on types without `deny_unknown_fields`; do not globally
+enable strict rejection. HTTP bodies must contain exactly one JSON value.
+
+Examples of non-zero defaults: absent `VmSpec.engine` means `qemu`; absent
+`Vm.backup` creates a complete backup state with a fresh UUID revision. A present
+`backup` must itself decode correctly and is not repaired by defaults. A wholly
+absent `Vm.options` defaults as a unit, while a present options object still has
+required fields. Apply these rules in persistence as well as HTTP codecs.
 
 ### Enums
 
@@ -67,10 +85,20 @@ row with a log line.
 - Timestamps are Unix seconds as unsigned 64-bit integers; `expires_at: 0` means
   "never".
 - MiB units for memory and disk; ports are unsigned 16-bit.
-- `port_map` is a JSON object with **string** keys (`{"22":20000}`) mapping guest
-  port → host port. Go: `map[string]uint16`; key order is irrelevant to JSON
-  semantics, but golden tests compare parsed values, not bytes, for maps.
+- `port_map` is a JSON object (`{"22":20000}`) mapping guest port → host port.
+  Use `map[uint16]uint16` and a compatible key decoder: Rust parses keys as u16,
+  so arbitrary strings and out-of-range values are invalid. Ordering is irrelevant
+  to JSON semantics; CLI/rule construction must explicitly sort numeric ports.
 - Saturating arithmetic is preserved everywhere reservations are computed.
+
+Compare JSON fixtures structurally with integer-preserving decoding (`UseNumber`
+or typed values), never through float64. Object order and equivalent JSON escapes
+are not wire differences; missing, null, empty array and empty object are distinct.
+Guest-config SHA-256 is an exception: its input is exactly serde_json's compact
+UTF-8 serialization of the sorted string map. Go's default HTML escaping, even
+`SetEscapeHTML(false)` for U+2028/U+2029, and Encoder's final newline need explicit
+handling. Rust-generated digest vectors must include `<`, `>`, `&`, Unicode line
+separators, control escapes and multibyte text.
 
 ## 3. HTTP surface
 
@@ -102,7 +130,7 @@ Agent routes (`crates/agent/src/main.rs`): `GET /api/info`, `GET /api/images`,
 `GET|POST /api/vms`, `GET|DELETE /api/vms/{id}`, `POST /api/vms/{id}/stop|start`,
 `POST /api/vms/{id}/resources`, and the four backup routes.
 
-Status mapping (shared by both services):
+Status overview (endpoint-specific, not one global error classifier):
 
 | Condition | Status |
 |---|---|
@@ -122,12 +150,25 @@ Backup mutations additionally carry `Idempotency-Key` (UUID) and `If-Match`
 (quoted revision UUID), and the agent answers with `X-TT-Backup-Settled` /
 `X-TT-Backup-Settled-Sequence` headers on failure when the writer has settled.
 The message-prefix → status table lives in `crates/core/src/backup.rs`
-(`error_status`) and is mirrored in `internal/backup`.
+(`error_status`) and is mirrored in `internal/backup`; its fallback is **500**.
+Controller forwarding separately maps upstream 5xx, transport failure and invalid
+responses to **502**, preserving upstream client errors. Other lifecycle endpoints
+use their own status rules; do not apply the backup prefixes globally.
 
-Authentication: `Authorization: Bearer <key>`, scheme compared case-insensitively,
+Authentication: `Authorization: Bearer <key>`, split at the first literal space,
+scheme compared case-insensitively,
 token compared in constant time (length is not hidden). Missing/invalid → 401 with
-the standard envelope. No key configured → no authentication at all. There is no
+the standard envelope and `invalid or missing API key`. Do not trim the token or
+normalize extra whitespace. Configured keys must be nonempty ASCII 0x21–0x7e.
+No key configured → no authentication at all. There is no
 per-owner or per-environment authorization anywhere.
+
+Router/extractor behavior needs differential HTTP tests: HEAD, unsupported methods,
+unknown routes, slash/escaped-path handling, JSON content type, size limits,
+malformed/trailing JSON, and middleware order. `net/http.ServeMux` alone is not an
+Axum compatibility layer; use an exact dashboard route (`GET /{$}`) instead of
+letting `/` catch every unknown path. Capture Rust rejection status, headers and
+body before choosing Go validation or HTTP server limits.
 
 ## 4. Persistent state
 
@@ -145,14 +186,17 @@ CREATE INDEX idx_vms_host ON vms(host_id);
 - `_meta.schema_version` = `5`; a database with a **higher** version refuses to
   open with the "upgrade TTstack first" error; `current < 5` runs the backup
   migration (materialize a default `backup` object with a fresh UUID `revision`
-  for every VM row in one transaction; a single unparsable row aborts and leaves
-  the version untouched).
+  only where the key is absent, preserving existing values and unknown fields).
+  Parse each row as a JSON object, not a fully validated VM. An unparsable or
+  non-object row aborts the transaction and leaves the version untouched.
 - Pragmas: `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON`,
   `busy_timeout=5000`.
 - Row payloads are the JSON documents described in §2 — field names and omission
   rules included. Byte-identical serialization is not required (JSON object order
   is not meaningful), but decoding a Rust-written row and re-encoding it must
-  produce a semantically identical document, and the golden tests assert that.
+  produce the same document as Rust's decode-and-re-encode, including materialized
+  defaults. Typed persistence does not promise to retain unknown fields; the raw
+  JSON migration and offline converter do. Golden tests assert each contract.
 
 ### Agent database (`agent.db`)
 
@@ -169,6 +213,13 @@ CREATE TABLE vms   (id TEXT PRIMARY KEY, data TEXT NOT NULL);
   reservations to capacity and disable admission.
 - Changing the persisted network configuration or container-runtime binding while
   VM rows exist is refused.
+
+"Populated" means any non-internal schema object exists, not that a VM row exists.
+An empty v5 inventory is still rejected. Existing v6 state with missing tables is
+not silently repaired. The writer uses a 5000 ms busy timeout and configures
+WAL/FULL after the schema gate; read-only snapshots use 2000 ms. The agent does
+not enable the controller's `foreign_keys=ON` pragma. Connection-local settings
+must be applied to each actual Go connection, not only once to a pool.
 
 ### Host paths and artifacts
 
@@ -190,9 +241,9 @@ volume, symlinked as `rootfs.ext4` inside the clone.
 
 | Identifier | Rule |
 |---|---|
-| TAP name | `tt-` + first 12 hex digits of SipHash-1-3(zeros, `UTF8(vm_id) ‖ 0xff`); ≤15 chars |
-| Guest MAC | `02:54:a.b.c.d` from the guest IPv4 octets |
-| Bridge | `tt0`, address `10.10.0.1/16`; guest IPs `10.10.<i/254>.<i%254+1>` |
+| TAP name | `tt-` + zero-padded 12 hex digits of the **low 48 bits** of SipHash-1-3(zeros, `UTF8(vm_id) ‖ 0xff`); ≤15 chars |
+| Guest MAC | `02:54:aa:bb:cc:dd`, two lowercase hex digits per IPv4 octet; `10.10.0.2` → `02:54:0a:0a:00:02` |
+| Bridge | `tt0`, address `10.10.0.1/16`; with zero-based index `i`, set `n=i+1`, guest IP `10.10.<(n/254)&255>.<n%254+1>`; index 0 → `10.10.0.2` |
 | nftables | table `tt-nat` (chains `prerouting`, `postrouting`, `forward`, set `denylist`); isolation tables named from the TAP with `-`→`_`; SSH ingress table `ip tt-ssh` |
 | Firecracker jail | UID/GID `100000 + c*256 + d`; chroot `<image-parent>/.jailer/<binary>/<tap>/root`; cgroup `/sys/fs/cgroup/ttstack/<tap>`; socket `/fc-<tap>.sock` (<108 bytes) |
 | Docker container | `tt-<vm-id>` |
@@ -222,6 +273,12 @@ arguments). Defaults to preserve:
 | Backup storage budget | 240 s per attempt, 60 s per command, 16 MiB headroom probe |
 | Port pool | 20000–65535 inclusive, at most 256 entries per VM, port 22 auto-added where the Rust version adds it |
 
+QEMU's monitor is HMP text over a Unix socket, not QMP JSON. `cont` resumes a
+paused process; agent start of a stopped VM boots the retained disk through the
+engine's create path. PID recovery returns absence on a complete zero-match scan,
+but errors on unreadable or ambiguous identity. Capture limits apply to returned
+command output, not the size of the temporary files Rust uses during execution.
+
 ## 7. Deliberate deviations
 
 These are the only intentional departures. Each must preserve observable behavior
@@ -241,11 +298,13 @@ a host-visible name is a compatibility bug, not a design choice.
 
 ## 8. How compatibility is verified
 
-1. **Golden JSON fixtures** per wire type, generated once from the Rust build and
-   stored under `internal/*/testdata`; Go tests decode, re-encode and compare.
-2. **Fixture databases**: a Rust-created `ctl.db` (v5) and `agent.db` (v6) are
-   opened, read, written and re-read by Go tests; schema versions, tables and
-   payloads must round-trip.
+1. **Golden JSON fixtures** per wire type, generated from the pinned Rust build
+   with positive and negative decode cases; semantic round trips preserve number
+   precision, presence and null rules. Byte fixtures cover digest input and text.
+2. **Database fixtures**: checked-in synthetic SQL/JSON exports reconstruct
+   temporary databases in Go tests. Differential tests create actual databases
+   through Rust, mutate them through Go and reopen them through Rust. Record the
+   oracle revision; never commit database files or private inventory.
 3. **Identifier vectors**: TAP names, MAC addresses, IP allocation, digest and
    command-line golden tests.
 4. **Cross-implementation runs** (phase 7, authorized hosts): Rust `tt-ctl` with a

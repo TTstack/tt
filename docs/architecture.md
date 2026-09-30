@@ -13,16 +13,18 @@ compatibility rules are in [compatibility.md](compatibility.md).
 | `tt-agent` | Host-local VM/container lifecycle, storage, networking | `0.0.0.0:9100` | `<data-dir>/agent.db`, `<data-dir>/service.lock`, VM records |
 | `upgrade-agent-v5` | Offline agent database converter (v5 → v6) | — | writes a new file only |
 
-All three services take `--api-key` (or `TT_API_KEY`); without one their API is
-unauthenticated and they print a warning. Keys must be nonempty printable ASCII.
+The two services and the CLI take `--api-key` (or `TT_API_KEY`). A service without
+a configured key exposes an unauthenticated API and prints a warning. Keys must
+be nonempty printable ASCII without whitespace; the offline converter has no key.
 
 Startup order (both services):
 
 1. Parse flags; validate the API key.
 2. Create the data directory; take an exclusive non-blocking `flock` on
    `<data-dir>/service.lock` (mode 0600) for the process lifetime.
-3. Open SQLite (WAL, `synchronous=FULL`, `busy_timeout=5s`, foreign keys on) and run
-   the schema gate/migrations.
+3. Open SQLite and run the service-specific schema gate/migrations and pragmas.
+   Agent schema validation precedes WAL configuration; controller ordering follows
+   its Rust migration path. See compatibility §4.
 4. Resolve identity/configuration that is persisted in `_meta` (agent `host_id`,
    container runtime binding, network configuration).
 5. Start background loops, bind the listener, serve with graceful shutdown on
@@ -33,12 +35,12 @@ Startup order (both services):
 ```text
 cmd/tt  cmd/tt-ctl  cmd/tt-agent  cmd/upgrade-agent-v5
 internal/
-  model        domain types, enums, constants, resource accounting, validation
+  model        domain and embedded wire types, enums, constants, accounting, codecs
   api          wire request/response types and the ApiResp envelope
   capability   design matrix, scoped host report, legacy tag mapping, admission
-  backup       backup protocol types (Request/Generation/State/View), status mapping
+  backup       backup request validation, replay/preconditions, status mapping
   guestconfig  opaque guest files: validation, SHA-256 digest, ext4 config disk
-  sshboot      SshOptions/SshInfo, seed script generation, readiness probes
+  sshboot      SSH option resolution, seed script generation, readiness probes
   auth         API key parsing/compare and the bearer middleware
   runcmd       bounded command execution, output capture, polling helpers
   engine       Engine interface + factory, PID recovery/termination,
@@ -53,12 +55,42 @@ internal/
                ttconfig.go
 ```
 
-Rules: `internal/` packages never import `cmd/`; `model`, `api`, `capability`,
-`backup`, `guestconfig`, `sshboot`, `auth` and `runcmd` are platform-independent
-and shared by all binaries; `engine`, `netcfg` and `storage` are host-side and
+Rules: `internal/` packages never import `cmd/`. Shared wire types and policy are
+platform-independent; `guestconfig`, `sshboot` and `runcmd` also contain host-facing
+helpers separated where necessary. `engine`, `netcfg` and `storage` are host-side and
 select Linux or FreeBSD code by `runtime.GOOS` with per-OS files
 (`*_linux.go`, `*_freebsd.go`, `*_other.go` returning "not supported on this
 platform").
+
+Go package imports must form this directed graph (arrows mean "imports"):
+
+```text
+model -> standard library, uuid (backup revision defaults)
+api -> model
+capability -> model
+backup -> model
+guestconfig -> model, capability, runcmd
+sshboot -> model, capability, guestconfig, runcmd
+auth -> api
+engine / netcfg / storage -> shared packages (never agent / ctl / cli)
+agent / ctl / cli -> shared packages (never each other)
+cmd/* -> its component package
+```
+
+`model` owns embedded capability reports, backup state/request/generation and SSH
+options/info as well as entities, enums and pure accounting methods. It imports
+none of the other internal packages. `api.BackupView` embeds `model.Vm` and owns
+the transport view. Policy functions in `backup` and `capability` accept model
+values; they cannot be receiver methods added to types defined in another package.
+Capability input adapters belong with callers: `capability` must not import
+`api`/`sshboot` to resolve creation requirements. File-by-file Rust copying would
+otherwise create `model ↔ backup`, `model ↔ capability` and SSH/config cycles.
+
+Platform-neutral wire types and policy do not depend on host syscall packages.
+Host operations in shared helpers use OS-specific files where necessary. The
+suffix `_other.go` does not select an OS in Go: fallback files require explicit
+`//go:build !linux && !freebsd` constraints. Cross-build all four binaries for
+Linux/amd64 and FreeBSD/amd64; native execution remains platform-gated.
 
 ## 3. Data model
 
@@ -108,18 +140,21 @@ Shared host-side helpers used by all engines:
 
 - `RecoverPID(pidPath, markers)` — never trusts a stale PID file. It validates
   `/proc/<pid>/cmdline` (Linux) or the `ps` listing (FreeBSD) against VM-specific
-  markers, otherwise scans all processes for a unique match and fails on 0 or
-  multiple matches ("resources retained").
+  markers, otherwise scans all processes for a unique match and fails on
+  multiple matches ("resources retained"). A complete readable scan with no match
+  returns absence, not an error; unreadable or ambiguous identity retains resources.
 - `Terminate(pid, marker)` — SIGTERM, poll, SIGKILL, poll; a surviving process is
   an error, never a silent success.
 
 Per engine (details mirrored from the Rust implementation):
 
 - **QEMU**: `qemu-system-x86_64` with `-enable-kvm -daemonize`, virtio disk/network,
-  MAC `02:54:a.b.c.d`, PID file and a QMP monitor socket in `RUN_DIR`, optional
+  MAC `02:54:aa:bb:cc:dd` (hex octets), PID file and an HMP text monitor socket in `RUN_DIR`, optional
   NoCloud seed ISO (`genisoimage`/`mkisofs`, volume id `cidata`) that carries
-  static networking and either initial SSH provisioning or root keys. Start =
-  QMP `cont`; stop = `system_powerdown` with a 10 s grace then termination.
+  static networking and either initial SSH provisioning or root keys. The engine's
+  `Start` sends HMP `cont` to resume a paused process. Agent start of a stopped VM
+  calls `Create` with the retained disk, without cloning it again. Stop sends
+  `system_powerdown` with a 10 s grace then termination.
 - **Firecracker**: per-VM clone directory with `vmlinux`, `rootfs.ext4` and an
   optional 4 MiB read-only `guest-config.ext4`; jailer chroot with a per-VM UID/GID
   derived from the guest IP (100000–165535), cgroup v2 limits (CPU quota, memory
@@ -159,10 +194,11 @@ There is no full-copy fallback.
 
 ## 6. Networking
 
-Linux (QEMU/Firecracker/Jail via the shared bridge):
+Linux (QEMU/Firecracker via the shared bridge):
 
 - Bridge `tt0` at `10.10.0.1/16`, forwarded IPv4. Guest addresses are allocated
-  per host as `10.10.<i/254>.<i%254+1>` (host-local, may repeat across hosts).
+  per host with `n = index + 1`, `10.10.<(n/254)&255>.<n%254+1>`;
+  zero-based index 0 produces `10.10.0.2` (host-local, may repeat across hosts).
 - TAP devices are deterministic: `tt-` plus 12 hex digits from a frozen
   SipHash-1-3 of the VM id (zero key, `0xff` terminator, digest masked to 48 bits).
   This is a host-visible identifier and must match the Rust implementation exactly.
@@ -201,7 +237,7 @@ One published recovery point per VM, with durable operations:
 - Controller and agent expose `GET/PUT/DELETE /api/vms/{id}/backup` and
   `POST /api/vms/{id}/backup/restore`.
 - Mutations require `Idempotency-Key: <operation uuid>` and
-  `If-Match: "<revision uuid>"`. `State.Check` resolves replays (a completed
+  `If-Match: "<revision uuid>"`. `backup.Check` resolves replays (a completed
   identical operation returns its receipt without touching storage), conflicts
   (same operation id, different parameters), unfinished operations and stale
   revisions before any work starts.
@@ -275,6 +311,29 @@ One published recovery point per VM, with durable operations:
 | Service state directory | exclusive `flock` on `service.lock` for the process lifetime |
 | SQLite | WAL, `synchronous=FULL`, `busy_timeout=5s`, single writer discipline |
 
+The SQLite writer uses one pinned connection initialized with the exact service
+pragmas. All writes and transactions use that connection under component locking;
+never call the pool from inside its transaction and wait for the same connection.
+Agent snapshot readers use separately initialized read-only connections with the
+Rust 2 s busy timeout. Resource totals and VM rows come from one snapshot; reader
+access must remain possible while a lifecycle operation holds the runtime lock.
+If a connection is replaced, reapply its connection-local pragmas before use.
+
+Accepted mutations use service-owned operation contexts with bounded tool/network
+deadlines, not the HTTP request context: a client disconnect cannot cancel durable
+work and release its reservations. Shutdown stops admission and background polling,
+accounts for active workers, and preserves unsettled intent for recovery. Do not
+hold controller database locks over agent HTTP calls. Tests cover disconnect,
+shutdown, stale refresh and lock ordering with `go test -race`.
+
+Command capture mirrors Rust's temporary-file strategy: read at most 4 MiB from
+each stream after the child exits, with a 300 s default timeout. This bounds
+returned output, not temporary disk usage. Avoid pipe readers that wait forever
+when descendants inherit stdout/stderr. Timeout termination must not blindly kill
+an entire process group containing a launched guest. Backup storage children
+explicitly inherit only their writer lock, using `ExtraFiles` or the corresponding
+platform mechanism, so a surviving child prevents a second writer after timeout.
+
 ## 12. Error handling and HTTP mapping
 
 Handlers return `(status, ApiResp[T])`. Errors are plain Go errors flattened to
@@ -302,12 +361,14 @@ fallback are supported.
 
 ## 14. Testing architecture
 
-- `internal/*/testdata` holds golden fixtures (JSON documents, SQLite databases)
-  generated from the Rust implementation; tests round-trip and compare bytes.
+- `internal/*/testdata` holds synthetic JSON/SQL fixtures generated from the pinned
+  Rust implementation. Database files are created in temporary directories.
+  JSON comparison is semantic and number-preserving; bytes are compared for
+  contractual text and digest input. Negative decoding fixtures are required too.
 - Contract tests ported from Rust unit tests cover scheduler placement, capability
   admission, backup replay, validation and TAP-name vectors.
 - `httptest`-based workflow tests exercise controller↔agent flows with mock agents
   (timeouts, partial failure, expiry, detach, resize recovery).
 - Engine tests use fake `PATH` executables to assert exact command lines.
-- FreeBSD-only code is compiled behind build tags and reviewed against the source;
-  it is not exercised in Linux CI.
+- FreeBSD-only code is cross-compiled in Linux CI and reviewed against the source;
+  native tests are separate evidence and cannot be inferred from a cross-build.

@@ -5,6 +5,21 @@ structure is deliberately flatter: one package per domain instead of one crate
 per binary plus a shared crate, because Go packages, not crates, are the unit of
 visibility and reuse here.
 
+This is a responsibility map, not a directive to copy Rust imports. Embedded wire
+structures live in `model` so the Go import graph remains acyclic; see
+[architecture.md](architecture.md#2-package-layout). In particular:
+
+| Rust type family | Go owner | Behavior owner |
+|---|---|---|
+| Capability `Report`, `EngineReport`, `Status`, matrix structures | `model` | `capability` policy/matrix functions |
+| Backup `Request`, `Generation`, `Pending`, `Receipt`, `State`, enums | `model` | `backup` validation, replay and HTTP status functions; pure reservation methods in `model` |
+| Backup `View`, `RestoreBody` | `api` | agent/controller handlers |
+| `SshOptions`, `SshInfo`, `GuestConfig` | `model` | `sshboot`, `guestconfig` |
+
+JSON names and formats do not change when a Go type moves to a different package.
+Do not introduce duplicate serialization definitions or depend on type aliases
+to break an underlying import cycle. Codecs and pure defaults belong with types.
+
 ## Crates
 
 | Rust | Go |
@@ -23,10 +38,10 @@ visibility and reuse here.
 |---|---|---|
 | `core/src/model.rs` | `internal/model` | entities, enums, constants, `Resource`, validation |
 | `core/src/api.rs` | `internal/api` | DTOs, `ApiResp[T]` → generic `Resp[T]` |
-| `core/src/capability.rs` | `internal/capability` | matrix, `Report`, legacy tags |
-| `core/src/backup.rs` | `internal/backup` | protocol types, `Check`, `ErrorStatus` |
+| `core/src/capability.rs` | `internal/model` + `internal/capability` | wire types in model; matrix, scoped admission and legacy tags in capability |
+| `core/src/backup.rs` | `internal/model` + `internal/api` + `internal/backup` | embedded state in model; view/body in api; `Check`, `ErrorStatus` in backup |
 | `core/src/guest_config.rs` | `internal/guestconfig` | validation, digest, ext4 disk |
-| `core/src/ssh.rs` | `internal/sshboot` | options/info, seed script, probes |
+| `core/src/ssh.rs` | `internal/model` + `internal/sshboot` | options/info in model; option resolution, seed script and probes in sshboot |
 | `core/src/auth.rs` | `internal/auth` | key parsing, constant-time compare |
 | `core/src/command.rs` | `internal/runcmd` | bounded execution |
 | `core/src/lib.rs` `lock_state` | `internal/runcmd` (or `internal/fslock`) | `flock` on the state directory |

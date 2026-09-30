@@ -33,6 +33,8 @@ Planned documents that land together with their features:
 
 ## Source of truth
 
-Where this documentation and the Rust source disagree, the Rust source wins for
-behavior and wire format; where this documentation and the Go source disagree,
-the Go source wins but the document must be fixed in the same change.
+The Rust revision pinned in [plan.md](plan.md) defines behavior and wire format.
+When Go code or these documents disagree with that oracle, fix the incorrect code
+or document; implemented Go behavior does not automatically override the contract.
+Approved implementation substitutions are listed in compatibility §7 and must
+preserve the observable contract.
