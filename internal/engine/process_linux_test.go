@@ -96,10 +96,20 @@ func TestCorruptAndMissingPIDFilesRecoverTheExactProcess(t *testing.T) {
 		}
 		_ = os.Remove(path)
 	}
+	// Linux can clear cmdline before publishing the zombie state. That is an
+	// unknown observation, so production correctly retains resources and asks
+	// for a retry. Our owned child completion confirms when that retry is safe.
+	if err := p.terminate(context.Background(), pid, marker); err != nil && !strings.Contains(err.Error(), "has no readable identity; resources retained") {
+		t.Fatal(err)
+	}
+	select {
+	case <-child.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("owned child did not exit after termination")
+	}
 	if err := p.terminate(context.Background(), pid, marker); err != nil {
 		t.Fatal(err)
 	}
-	<-child.done
 	if pid, err := p.recover(path, []string{marker}); err != nil || pid != 0 {
 		t.Fatal(pid, err)
 	}
