@@ -327,13 +327,17 @@ If a connection is replaced, reapply its connection-local pragmas before use.
 Accepted mutations use service-owned operation contexts with bounded tool/network
 deadlines, not the HTTP request context: a client disconnect cannot cancel durable
 work and release its reservations. Shutdown stops admission and background polling,
-accounts for active workers, and preserves unsettled intent for recovery. Do not
+drains active HTTP handlers, then cancels detached controller creation/expiry waits
+without erasing their durable intent. All controller goroutines exit before the
+state lock is released. Agent accepted-operation draining is unchanged. Do not
 hold controller database locks over agent HTTP calls. Tests cover disconnect,
 shutdown, stale refresh and lock ordering with `go test -race`.
 
 Command capture mirrors Rust's temporary-file strategy: read at most 4 MiB from
 each stream after the child exits, with a 300 s default timeout. This bounds
-returned output, not temporary disk usage. Avoid pipe readers that wait forever
+returned output, not temporary disk usage. Reference CLI calls without a deadline
+use the explicit unbounded entry point; this does not disable engine/storage
+command budgets. Avoid pipe readers that wait forever
 when descendants inherit stdout/stderr. Timeout termination must not blindly kill
 an entire process group containing a launched guest. Backup storage children
 explicitly inherit only their writer lock, using `ExtraFiles` or the corresponding

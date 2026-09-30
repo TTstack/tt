@@ -4,7 +4,8 @@
 # Requires SSH access and noninteractive sudo on targets (including root logins).
 # Deployment installs services; images and host registration are separate steps.
 # Sections are optional. Each included controller/agent requires host.
-# The format is identical to TTstack's tools/deploy.toml.example.
+# Field names/types match TTstack's template; release_dir below targets Go's bin/.
+# Image preparation is described in docs/guest-images.md.
 
 [general]
 prefix      = "/opt/ttstack"     # Install path on target hosts

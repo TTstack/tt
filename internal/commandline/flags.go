@@ -48,7 +48,7 @@ func CheckFlags(fs *flag.FlagSet, args []string) error {
 			return fmt.Errorf("error: unexpected value for '--%s' found; no more were expected", name)
 		}
 		if !isBool && !hasValue {
-			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+			if i+1 >= len(args) || (args[i+1] != "-" && strings.HasPrefix(args[i+1], "-")) {
 				return fmt.Errorf("error: a value is required for '--%s' but none was supplied", name)
 			}
 			i++

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/TTstack/tt/internal/model"
-	"github.com/TTstack/tt/internal/runcmd"
 )
 
 type sshTarget struct {
@@ -42,7 +41,7 @@ func (t sshTarget) exec(ctx context.Context, script string) (string, error) {
 }
 func (t sshTarget) copy(ctx context.Context, local, remote string) error {
 	command := exec.Command("scp", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-P", strconv.Itoa(int(t.port)), local, t.user+"@"+t.host+":"+remote)
-	out, err := t.deployer.execute(ctx, command, runcmd.DefaultTimeout)
+	out, err := t.deployer.execute(ctx, command, 0)
 	if err != nil {
 		return fmt.Errorf("scp failed: %w", err)
 	}

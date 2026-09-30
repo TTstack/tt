@@ -128,3 +128,23 @@ func TestMissingFirecrackerMetadataPreventsLifecycleAndRestore(t *testing.T) {
 		t.Fatal("missing metadata allowed restore")
 	}
 }
+
+func TestNonUTF8PIDMetadataRetainsResourcesInsteadOfScanning(t *testing.T) {
+	p := processes{root: t.TempDir()}
+	path := filepath.Join(t.TempDir(), "vm.pid")
+	marker := "/owned.sock"
+	for _, running := range []bool{false, true} {
+		if running {
+			fakeProcess(t, p, 23, "vmm\x00"+marker+"\x00")
+		}
+		put(t, path, "\xff23")
+		if pid, err := p.recover(path, []string{marker}); err == nil || pid != 0 || !strings.Contains(err.Error(), "read VM PID") {
+			t.Fatal(running, pid, err)
+		}
+	}
+	fakeProcess(t, p, 23, "")
+	put(t, filepath.Join(p.root, "23", "stat"), "23 (\xff) Z 1 2 3")
+	if _, err := p.matches(23, marker); err == nil {
+		t.Fatal("invalid process metadata treated as confirmed exit")
+	}
+}

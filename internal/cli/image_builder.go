@@ -53,7 +53,7 @@ type imageBuilder struct {
 }
 
 func newImageBuilder(a *application) *imageBuilder {
-	b := &imageBuilder{app: a, platform: runtime.GOOS, execute: runcmd.Output}
+	b := &imageBuilder{app: a, platform: runtime.GOOS, execute: toolOutput}
 	b.download = downloadFile
 	b.verified = b.downloadVerified
 	return b
@@ -65,9 +65,6 @@ func (a *application) listRecipes() {
 	}
 }
 func (b *imageBuilder) output(ctx context.Context, name string, timeout time.Duration, args ...string) (runcmd.Result, error) {
-	if timeout == 0 {
-		timeout = runcmd.DefaultTimeout
-	}
 	return b.execute(ctx, exec.Command(name, args...), timeout)
 }
 func (b *imageBuilder) run(ctx context.Context, name string, args ...string) error {

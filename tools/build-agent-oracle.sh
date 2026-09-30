@@ -12,6 +12,7 @@ mkdir -p "$destination"
 git -C "$reference" archive 1ad83a9feed5fac820d74b5e7ef752e50a552740 | tar -xf - -C "$destination"
 mkdir -p "$destination/crates/agent/examples"
 cp "$script_dir/oracle/agent-db.rs" "$destination/crates/agent/examples/agent-db.rs"
+cp "$script_dir/oracle/config-primitives.rs" "$destination/crates/agent/examples/config-primitives.rs"
 cp "$script_dir/oracle/agent-http.rs" "$destination/crates/agent/examples/agent-http.rs"
 cat "$script_dir/oracle/agent-db-export.rs" >> "$destination/crates/agent/src/runtime.rs"
-(cd "$destination" && cargo clean -p tt-agent && CARGO_BUILD_JOBS=2 cargo build --locked -p tt-agent --example agent-db --example agent-http --example upgrade-agent-v5)
+(cd "$destination" && cargo clean -p tt-agent && CARGO_BUILD_JOBS=2 cargo build --locked -p tt-agent --example agent-db --example agent-http --example upgrade-agent-v5 --example config-primitives)

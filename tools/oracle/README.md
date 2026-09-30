@@ -85,3 +85,27 @@ tree. `python3 capture-cli-output.py PINNED_TT_BINARY WIRE_FIXTURE` emits the 24
 synthetic loopback output/request cases in `internal/cli/testdata/output-rust.json`.
 Both use the freshly built binary at the pinned revision. The output capture
 starts no guests and performs no deployment, image download or host mutation.
+
+## Independent audit probes
+
+`controller-lifecycle.py PATH_TO_TT_CTL` uses a synthetic loopback agent to observe
+SIGTERM during detached creation and a client disconnect after stop has reached
+the agent. It never launches an agent/guest or mutates networking. Run it against
+both freshly built binaries. The pinned Rust keeps the unfinished creation plan
+on shutdown; both implementations finish the already-forwarded HTTP/1 stop after
+disconnection.
+
+`cli-input.py PATH_TO_TT` checks option/subcommand boundaries against a recording
+loopback server. `capture-cli-help.py` now also captures six help-for-help screens,
+in addition to the original 32 command help screens.
+
+The `config-primitives` example, included by `build-agent-oracle.sh`, imports the
+pinned argument parser without starting an agent. For example:
+
+```sh
+config-primitives --cpu-total 010 --mem-total +12 --disk-total 008 --port-start 02000
+```
+
+It emits decimal values 10, 12, 8 and 2000, rejects hexadecimal/binary numeric
+inputs, reports rusqlite's default 5000 ms busy timeout, and shows that the prepared
+root marker does not trim vertical tab. None of those checks needs a real engine.

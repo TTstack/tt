@@ -3,9 +3,12 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -103,6 +106,83 @@ func TestDeploymentTemplatesMatchPinnedRust(t *testing.T) {
 		}
 		if got := remoteSetupScript(tc.Service, command, "fixture", "/home/fixture", "/opt/tt", "/tmp/ttstack-deploy.fixture", []string{tc.Service}, []string{"/srv/images"}, "testhost", env); got != tc.Remote {
 			t.Fatal("remote template drift")
+		}
+	}
+}
+
+func TestEndOfOptionsCannotSelectOrExecuteASubcommand(t *testing.T) {
+	t.Setenv("TT_API_KEY", "fixture-key")
+	var requests atomic.Int32
+	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		http.Error(w, "unexpected request", http.StatusBadRequest)
+	}))
+	defer peer.Close()
+	for _, args := range [][]string{{"--", "status"}, {"env", "--", "list"}, {"host", "--", "remove", "fixture"}, {"env", "backup", "--", "delete", "fixture"}} {
+		var stdout, stderr bytes.Buffer
+		app := newApplication(&stdout, &stderr)
+		config := filepath.Join(t.TempDir(), "config")
+		app.configPath = func() (string, error) { return config, nil }
+		if code := app.run(append([]string{"--server", peer.URL}, args...)); code != 2 || !strings.Contains(stderr.String(), "unexpected argument") || stdout.Len() != 0 {
+			t.Fatal(args, code, stdout.String(), stderr.String())
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatal("rejected input contacted the controller")
+	}
+	p, err := parse([]string{"env", "delete", "--", "fixture"})
+	if err != nil || p.path != "env delete" || p.argument != "fixture" {
+		t.Fatal(p, err)
+	}
+}
+func TestLoneDashIsAnOptionValue(t *testing.T) {
+	p, err := parse([]string{"env", "create", "fixture", "--image", "base", "--owner", "-"})
+	if err != nil || p.value("owner") != "-" {
+		t.Fatal(p, err)
+	}
+	if _, err := parse([]string{"env", "create", "fixture", "--image", "base", "--owner", "-x"}); err == nil {
+		t.Fatal("option-like value accepted without equals")
+	}
+}
+func TestMissingRequirementsAreCompleteAndDeterministic(t *testing.T) {
+	for _, tc := range []struct {
+		args    []string
+		missing []string
+	}{{[]string{"env", "create"}, []string{"--image <IMAGE>", "<NAME>"}}, {[]string{"env", "resize", "vm"}, []string{"--cpu <CPU>", "--mem <MEM>", "--disk <DISK>"}}, {[]string{"env", "backup", "create", "--operation-id", "operation"}, []string{"--expected-revision <EXPECTED_REVISION>", "<VM_ID>"}}} {
+		previous := ""
+		for range 10 {
+			_, err := parse(tc.args)
+			if err == nil {
+				t.Fatal(tc.args)
+			}
+			for _, label := range tc.missing {
+				if !strings.Contains(err.Error(), label) {
+					t.Fatal(label, err)
+				}
+			}
+			if previous != "" && previous != err.Error() {
+				t.Fatal("nondeterministic missing arguments")
+			}
+			previous = err.Error()
+		}
+	}
+}
+func TestMissingSubcommandPrintsItsParentHelp(t *testing.T) {
+	for path := range commandChildren {
+		var stdout, stderr bytes.Buffer
+		if code := Run(strings.Fields(path), &stdout, &stderr); code != 2 || stdout.Len() != 0 || stderr.String() != helpText(path) {
+			t.Fatal(path, code, stdout.String(), stderr.String())
+		}
+	}
+}
+
+func TestHelpForHelpSubcommandsMatchesRust(t *testing.T) {
+	for parent := range commandChildren {
+		var stdout, stderr bytes.Buffer
+		args := append(strings.Fields(parent), "help", "help")
+		path := strings.TrimSpace(parent + " help")
+		if code := Run(args, &stdout, &stderr); code != 0 || stderr.Len() != 0 || stdout.String() != helpText(path) || stdout.Len() == 0 {
+			t.Fatal(parent, code, stdout.String(), stderr.String())
 		}
 	}
 }

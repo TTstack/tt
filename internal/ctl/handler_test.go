@@ -671,3 +671,53 @@ func TestConfirmedStopSurvivesConcurrentlyInvalidatedRefresh(t *testing.T) {
 		t.Fatal(vm, err)
 	}
 }
+
+func TestCancelledExpiryRetainsDeletionIntentAndReservations(t *testing.T) {
+	s, m := controllerFixture(t)
+	seedController(t, s, m)
+	s.dbMu.Lock()
+	env, err := s.db.GetEnv(context.Background(), "env")
+	if err == nil {
+		env.ExpiresAt = 1
+		err = s.db.PutEnv(context.Background(), env)
+	}
+	s.dbMu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	defer once.Do(func() { close(release) })
+	m.mu.Lock()
+	m.beforeDelete = func() { close(entered); <-release }
+	m.mu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.workCtx = ctx
+	done := make(chan struct{})
+	go func() { s.ExpireOnce(ctx); close(done) }()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("expiry did not reach the agent")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expiry did not cancel its wait")
+	}
+	detail, apiErr := s.environmentDetail(context.Background(), "env")
+	if apiErr != nil || detail.Env.State != model.EnvDeleting || len(detail.VMs) != 1 || detail.VMs[0].Disk == 0 {
+		t.Fatal(detail, apiErr)
+	}
+	once.Do(func() { close(release) })
+	m.mu.Lock()
+	m.beforeDelete = nil
+	m.mu.Unlock()
+	s.workCtx = context.Background()
+	s.ExpireOnce(context.Background())
+	if _, apiErr := s.environmentDetail(context.Background(), "env"); apiErr == nil || apiErr.Status != 404 {
+		t.Fatal(apiErr)
+	}
+}

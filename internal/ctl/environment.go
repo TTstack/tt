@@ -97,7 +97,7 @@ func (s *Server) createEnvironment(ctx context.Context, request api.CreateEnvReq
 	go func() {
 		defer s.workers.Done()
 		defer operation.Close()
-		if err := s.finishCreation(s.workCtx, request.ID, requests); err != nil {
+		if err := s.finishCreation(s.workCtx, request.ID, requests); err != nil && s.workCtx.Err() == nil {
 			s.log("[ctl] creation: %s", err.Message)
 		}
 	}()
@@ -203,6 +203,9 @@ func (s *Server) finishCreation(ctx context.Context, id string, requests []creat
 			break
 		}
 		vm, err := client.create(ctx, item.address, item.request)
+		if ctx.Err() != nil {
+			return internal(ctx.Err())
+		}
 		if err == nil {
 			if _, err := withDB(s, func(db *DB) (model.Unit, error) { return model.Unit{}, db.PutVM(ctx, vm) }); err != nil {
 				return internal(err)
@@ -278,6 +281,9 @@ func (s *Server) deleteEnvironment(ctx context.Context, id string, expiryOnly bo
 			err = fmt.Errorf("host %s is offline; cleanup retained for retry", vm.HostID)
 		} else {
 			err = client.action(ctx, *host, vm.ID, nil)
+		}
+		if ctx.Err() != nil {
+			return internal(ctx.Err())
 		}
 		if err == nil {
 			if _, err := withDB(s, func(db *DB) (model.Unit, error) { return model.Unit{}, db.RemoveVM(ctx, vm.ID) }); err != nil {

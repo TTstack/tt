@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"time"
 )
 
@@ -38,32 +37,31 @@ func (e timeoutError) Unwrap() error { return os.ErrDeadlineExceeded }
 // hanging when a descendant inherits stdout/stderr. ExtraFiles, when supplied by
 // the caller, preserve a backup writer lock in surviving storage children.
 func Output(ctx context.Context, cmd *exec.Cmd, timeout time.Duration) (Result, error) {
+	return output(ctx, cmd, timeout, true)
+}
+
+// OutputUnbounded preserves the reference CLI operations that have no elapsed
+// time limit. Context cancellation still terminates the direct child, and the
+// same output-capture and inherited-descriptor rules apply as to Output.
+func OutputUnbounded(ctx context.Context, cmd *exec.Cmd) (Result, error) {
+	return output(ctx, cmd, 0, false)
+}
+
+func output(ctx context.Context, cmd *exec.Cmd, timeout time.Duration, bounded bool) (Result, error) {
 	var result Result
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	stdout, err := os.CreateTemp("", "tt-stdout-*")
+	stdout, err := AnonymousFile("", "tt-stdout-*")
 	if err != nil {
 		return result, err
 	}
-	defer os.Remove(stdout.Name())
 	defer stdout.Close()
-	if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" {
-		if err := os.Remove(stdout.Name()); err != nil {
-			return result, err
-		}
-	}
-	stderr, err := os.CreateTemp("", "tt-stderr-*")
+	stderr, err := AnonymousFile("", "tt-stderr-*")
 	if err != nil {
 		return result, err
 	}
-	defer os.Remove(stderr.Name())
 	defer stderr.Close()
-	if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" {
-		if err := os.Remove(stderr.Name()); err != nil {
-			return result, err
-		}
-	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
@@ -71,15 +69,19 @@ func Output(ctx context.Context, cmd *exec.Cmd, timeout time.Duration) (Result, 
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
+	var deadline <-chan time.Time
+	if bounded {
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+		deadline = timer.C
+	}
 	select {
 	case err := <-done:
 		var exit *exec.ExitError
 		if err != nil && !errors.As(err, &exit) {
 			return result, err
 		}
-	case <-timer.C:
+	case <-deadline:
 		_ = cmd.Process.Kill()
 		<-done
 		return result, timeoutError{cmd.Args[0], timeout}

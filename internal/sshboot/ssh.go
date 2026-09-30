@@ -128,7 +128,7 @@ func PreparedRootfs(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("inspect SSH image support: %w", err)
 	}
-	if !output.Success() || strings.Trim(string(output.Stdout), " \t\n\r\x0b\x0c") != "1" {
+	if !output.Success() || strings.Trim(string(output.Stdout), " \t\n\r\x0c") != "1" {
 		return fmt.Errorf("Firecracker image requires TTstack SSH bootstrap version 1")
 	}
 	return nil

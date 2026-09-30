@@ -835,18 +835,16 @@ func removeRegular(path string) error {
 	return os.Remove(path)
 }
 func ProbeReflink(root string) error {
-	source, err := os.CreateTemp(root, ".backup-probe-*")
+	source, err := runcmd.AnonymousFile(root, ".backup-probe-*")
 	if err != nil {
 		return err
 	}
 	defer source.Close()
-	defer os.Remove(source.Name())
-	target, err := os.CreateTemp(root, ".backup-probe-*")
+	target, err := runcmd.AnonymousFile(root, ".backup-probe-*")
 	if err != nil {
 		return err
 	}
 	defer target.Close()
-	defer os.Remove(target.Name())
 	if _, err := source.WriteString("backup-probe"); err != nil {
 		return err
 	}

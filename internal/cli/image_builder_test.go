@@ -163,8 +163,12 @@ func TestQemuRecipeConversionAndFailedPublication(t *testing.T) {
 				return os.WriteFile(path, []byte("downloaded"), 0600)
 			}
 			b.execute = func(_ context.Context, cmd *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
-				if timeout <= 0 {
-					t.Fatal("missing timeout")
+				wantTimeout := time.Duration(0)
+				if cmd.Args[1] == "convert" {
+					wantTimeout = 300 * time.Second
+				}
+				if timeout != wantTimeout {
+					t.Fatal("recipe timeout drift", timeout, wantTimeout)
 				}
 				if cmd.Args[0] != "qemu-img" {
 					t.Fatal(cmd.Args)
@@ -215,8 +219,12 @@ func TestDockerRecipeUsesSelectedRuntimeAndAlias(t *testing.T) {
 	b := newImageBuilder(quietApplication())
 	calls := [][]string{}
 	b.execute = func(_ context.Context, cmd *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
-		if timeout <= 0 {
-			t.Fatal("missing timeout")
+		wantTimeout := time.Duration(0)
+		if cmd.Args[1] == "tag" {
+			wantTimeout = 300 * time.Second
+		}
+		if timeout != wantTimeout {
+			t.Fatal("container timeout drift", timeout, wantTimeout)
 		}
 		calls = append(calls, cmd.Args)
 		if cmd.Args[0] == "docker" {
@@ -232,7 +240,7 @@ func TestDockerRecipeUsesSelectedRuntimeAndAlias(t *testing.T) {
 		t.Fatal(calls)
 	}
 }
-func TestHostCommandsUseNonzeroDefaultTimeout(t *testing.T) {
+func TestUnboundedCLICommandsDoNotTreatZeroAsImmediateDeadline(t *testing.T) {
 	ctx := context.Background()
 	b := newImageBuilder(quietApplication())
 	d := newDeployer(quietApplication())

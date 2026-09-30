@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/sys/unix"
 )
@@ -32,7 +33,7 @@ func (p processes) matches(pid uint32, marker string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		if err == nil {
+		if err == nil && utf8.Valid(stat) {
 			index := strings.LastIndex(string(stat), ") ")
 			if index >= 0 && strings.HasPrefix(string(stat)[index+2:], "Z ") {
 				return false, nil
@@ -53,6 +54,9 @@ func (p processes) recover(path string, markers []string) (uint32, error) {
 		return 0, fmt.Errorf("read VM PID: %w", err)
 	}
 	if err == nil {
+		if !utf8.Valid(data) {
+			return 0, fmt.Errorf("read VM PID: invalid UTF-8; resources retained")
+		}
 		id, err := strconv.ParseUint(strings.TrimPrefix(strings.TrimSpace(string(data)), "+"), 10, 32)
 		if err == nil && id > 0 && id <= math.MaxInt32 {
 			for _, marker := range markers {

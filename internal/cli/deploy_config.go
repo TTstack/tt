@@ -72,13 +72,13 @@ func deployUnsigned(table map[string]any, key string, fallback, max uint64) (uin
 func parseDeployConfig(content string) (deployConfig, error) {
 	var raw map[string]any
 	if _, err := toml.Decode(content, &raw); err != nil {
-		return deployConfig{}, fmt.Errorf("parse deploy.toml: %w", err)
+		return deployConfig{}, err
 	}
 	cfg := deployConfig{General: deployGeneral{Prefix: "/opt/ttstack", User: "ttstack", ReleaseDir: "./target/release"}, Agents: []deployAgent{}}
 	if value, present := raw["general"]; present {
 		table, ok := value.(map[string]any)
 		if !ok {
-			return cfg, fmt.Errorf("parse deploy.toml: general must be a table")
+			return cfg, fmt.Errorf("general must be a table")
 		}
 		var err error
 		if cfg.General.Prefix, err = deployText(table, "prefix", cfg.General.Prefix, false); err != nil {
@@ -97,7 +97,7 @@ func parseDeployConfig(content string) (deployConfig, error) {
 	if value, present := raw["controller"]; present {
 		table, ok := value.(map[string]any)
 		if !ok {
-			return cfg, fmt.Errorf("parse deploy.toml: controller must be a table")
+			return cfg, fmt.Errorf("controller must be a table")
 		}
 		controller := &deployController{}
 		var err error
@@ -129,12 +129,12 @@ func parseDeployConfig(content string) (deployConfig, error) {
 			for _, entry := range value {
 				table, ok := entry.(map[string]any)
 				if !ok {
-					return cfg, fmt.Errorf("parse deploy.toml: agents must be tables")
+					return cfg, fmt.Errorf("agents must be tables")
 				}
 				tables = append(tables, table)
 			}
 		default:
-			return cfg, fmt.Errorf("parse deploy.toml: agents must be an array")
+			return cfg, fmt.Errorf("agents must be an array")
 		}
 		for _, table := range tables {
 			agent := deployAgent{}

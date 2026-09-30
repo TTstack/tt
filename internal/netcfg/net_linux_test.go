@@ -89,3 +89,24 @@ func TestNATSetupPreservesPreroutingAndDenylist(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestNftRulesAreUnlinkedBeforeTheToolStarts(t *testing.T) {
+	n := New()
+	n.execute = func(_ context.Context, cmd *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
+		file, ok := cmd.Stdin.(*os.File)
+		if !ok {
+			t.Fatal("nft stdin is not the prepared descriptor")
+		}
+		if _, err := os.Stat(file.Name()); !os.IsNotExist(err) {
+			t.Fatal("firewall scratch file remains named", err)
+		}
+		data, err := io.ReadAll(file)
+		if err != nil || string(data) != "fixture rules\n" || timeout != 10*time.Second {
+			t.Fatal(string(data), timeout, err)
+		}
+		return runcmd.Result{}, nil
+	}
+	if err := n.nft(context.Background(), "fixture rules"); err != nil {
+		t.Fatal(err)
+	}
+}
