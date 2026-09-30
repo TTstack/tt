@@ -18,3 +18,10 @@ func TestSerdeJSONEscapesOnlyJSONSyntax(t *testing.T) {
 		t.Fatal("invalid UTF-8 accepted")
 	}
 }
+
+func TestNumericMapsUseRustBTreeOrderingForCLIJSON(t *testing.T) {
+	data, err := SerdeJSON(Map[uint16, uint16]{443: 20443, 80: 20080, 22: 20022})
+	if err != nil || string(data) != `{"22":20022,"80":20080,"443":20443}` {
+		t.Fatal(string(data), err)
+	}
+}

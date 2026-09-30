@@ -1,0 +1,11 @@
+Register a new host by its agent address
+
+Usage: tt host add [OPTIONS] <ADDR>
+
+Arguments:
+  <ADDR>  Agent address, e.g. "10.0.0.2:9100"
+
+Options:
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -k, --api-key <API_KEY>  API key for controller authentication [env: TT_API_KEY=]
+  -h, --help               Print help

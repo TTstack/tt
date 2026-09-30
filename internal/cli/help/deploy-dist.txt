@@ -1,0 +1,11 @@
+Distributed deploy to all hosts defined in a config file
+
+Usage: tt deploy dist [OPTIONS] [CONFIG]
+
+Arguments:
+  [CONFIG]  Path to deploy config (TOML format) [default: deploy.toml]
+
+Options:
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -k, --api-key <API_KEY>  API key for controller authentication [env: TT_API_KEY=]
+  -h, --help               Print help

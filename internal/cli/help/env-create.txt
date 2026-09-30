@@ -1,0 +1,26 @@
+Create a new environment with VMs
+
+Usage: tt env create [OPTIONS] --image <IMAGE> <NAME>
+
+Arguments:
+  <NAME>  Environment name
+
+Options:
+  -i, --image <IMAGE>                Image name (repeatable)
+  -s, --server <SERVER>              Controller address; saved credentials are reused only for the same address
+      --engine <ENGINE>              Engine type: qemu, firecracker, docker (Linux); bhyve, jail (experimental FreeBSD) [default: qemu]
+  -k, --api-key <API_KEY>            API key for controller authentication [env: TT_API_KEY=]
+      --cpu <CPU>                    CPU cores per VM
+      --mem <MEM>                    Memory per VM in MiB
+      --disk <DISK>                  Disk size in MiB: QEMU defaults to 40960; Firecracker defaults to image size
+      --dup <DUP>                    Duplicate each image N times [default: 1]
+  -p, --port <PORT>                  TCP guest port to expose (repeatable); host ports are allocated automatically
+      --lifetime <LIFETIME>          Environment lifetime in seconds (default 21600; 0 = no expiry)
+      --deny-outgoing                Block routed outgoing traffic (unsupported for Docker; not host/VM isolation)
+      --isolated-network             Isolate from other guests, host services and private networks (Linux QEMU/Firecracker)
+      --guest-config <GUEST_CONFIG>  JSON file mapping file names to UTF-8 contents for a read-only Firecracker config drive
+      --owner <OWNER>                Owner label, not an access control (defaults to $USER)
+      --ssh-key <SSH_KEY>            Initial SSH keys for QEMU/prepared Firecracker; root keys for experimental Jail
+      --ssh-user <SSH_USER>          Initial SSH account (defaults to root for generic VMs) [default: root]
+      --ssh-sudo                     Grant unrestricted passwordless guest sudo to the initial SSH account
+  -h, --help                         Print help

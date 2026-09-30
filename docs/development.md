@@ -60,7 +60,7 @@ modules are recorded in `go.mod`; the `modernc.org/libc` module does not introdu
 CGo into production builds. No additional direct dependency was added.
 
 Everything else comes from the standard library. In particular: no CLI framework
-(standard `flag`), no HTTP router (Go 1.22 method patterns), no logging framework
+(explicit subcommand tree), no external HTTP router (explicit raw-path routing), no logging framework
 (`log` to stderr), no assertion library (plain `testing`).
 
 ## Repository conventions

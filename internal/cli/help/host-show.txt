@@ -1,0 +1,11 @@
+Show host details
+
+Usage: tt host show [OPTIONS] <ID>
+
+Arguments:
+  <ID>  
+
+Options:
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -k, --api-key <API_KEY>  API key for controller authentication [env: TT_API_KEY=]
+  -h, --help               Print help

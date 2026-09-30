@@ -1,0 +1,20 @@
+Overwrite the stopped VM's disk with this recovery point; retains the backup
+
+Usage: tt env backup restore [OPTIONS] --generation <GENERATION> <VM_ID>
+
+Arguments:
+  <VM_ID>  
+
+Options:
+      --operation-id <OPERATION_ID>
+          Reuse the printed UUID for an exact retry after a lost response
+  -s, --server <SERVER>
+          Controller address; saved credentials are reused only for the same address
+      --expected-revision <EXPECTED_REVISION>
+          Reuse the printed revision with --operation-id, never substitute a new one on retry
+  -k, --api-key <API_KEY>
+          API key for controller authentication [env: TT_API_KEY=]
+      --generation <GENERATION>
+          
+  -h, --help
+          Print help

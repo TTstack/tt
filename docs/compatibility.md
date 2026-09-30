@@ -317,7 +317,7 @@ at the API and filesystem boundary.
 |---|---|---|---|
 | Downloads (image recipes, deployment helpers) | `curl` | Go HTTP client | fewer host prerequisites; same URLs, digests, atomically published files |
 | Firecracker API calls | `curl --unix-socket` | HTTP client over the Unix socket | same requests, same 5 s timeout |
-| CLI argument parsing | clap | standard `flag` + subcommand tree | dependency policy; help text and errors are written to match |
+| CLI argument parsing | clap | explicit subcommand tree | dependency policy; pinned help and output fixtures, equivalent validation and exit codes |
 | Error diagnostics | `ruc` may decorate business errors with ANSI escapes, timestamps, PID/namespace and Rust source locations | Go contextual error text without that process-specific decoration | preserve stable business messages and status/prefix mapping; avoid fabricated Rust stack locations |
 | Async runtime | Tokio | goroutines/context | idiomatic Go |
 | SQLite driver | rusqlite (cgo, bundled) | modernc.org/sqlite (pure Go) | no cgo; behavior fixed by pragmas and fixture tests |
@@ -330,6 +330,15 @@ that Rust diagnostic envelope. Differential tests explicitly normalize only this
 envelope when comparing business failures; they do not normalize protocol
 prefixes, status codes, JSON extractor errors or routing responses. This corrects
 the earlier plan's overly broad promise of identical error strings.
+
+CLI debug and diagnostic formatting may differ from Rust, as authorized for this
+port; operation behavior, exit status, stable business prefixes and protocol
+fields remain contractual. Deployment diagnostics redact `TT_API_KEY=` lines.
+CLI JSON maps with unsigned port keys retain numeric BTreeMap order. API clients
+disable redirects and automatic retries; Go uses a fresh HTTP/1 connection for
+each request to prevent transport replay of backup requests carrying idempotency
+headers. Image downloads use a 15 s connect and 900 s overall timeout, an 8 GiB
+limit, the curl limit of 50 redirects and the same pinned or manifest digests.
 
 Anything else that changes a JSON field, a status code, a printed line, a path or
 a host-visible name is a compatibility bug, not a design choice.

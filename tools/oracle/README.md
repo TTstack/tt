@@ -72,3 +72,16 @@ private empty state. It starts only a loopback service, registers no hosts and
 cannot schedule a guest. The dashboard body is represented by a marker in this
 fixture and separately pinned by its original source digest. Volatile Rust error
 decoration is normalized using the same rule as the agent oracle.
+
+## CLI output and deployment templates
+
+`../build-cli-oracle.sh RUST_CHECKOUT NEW_BUILD_DIRECTORY` builds the pinned `tt`
+and `cli-templates` example on the authorized FreeBSD host. The example only
+renders systemd/OpenRC/SSH script text; it executes no deployment commands. Its
+JSON output is `internal/cli/testdata/templates-rust.json`.
+
+`python3 capture-cli-help.py PINNED_TT_BINARY OUTPUT_DIRECTORY` captures the help
+tree. `python3 capture-cli-output.py PINNED_TT_BINARY WIRE_FIXTURE` emits the 24
+synthetic loopback output/request cases in `internal/cli/testdata/output-rust.json`.
+Both use the freshly built binary at the pinned revision. The output capture
+starts no guests and performs no deployment, image download or host mutation.

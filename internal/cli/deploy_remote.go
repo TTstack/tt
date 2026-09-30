@@ -1,0 +1,237 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/TTstack/tt/internal/model"
+	"github.com/TTstack/tt/internal/runcmd"
+)
+
+type sshTarget struct {
+	user, host string
+	port       uint16
+	deployer   *deployer
+}
+
+func redactDeploymentOutput(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if at := strings.Index(line, "TT_API_KEY="); at >= 0 {
+			lines[i] = line[:at] + "TT_API_KEY=<redacted>"
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+func (t sshTarget) exec(ctx context.Context, script string) (string, error) {
+	command := exec.Command("ssh", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-p", strconv.Itoa(int(t.port)), t.user+"@"+t.host, "sh -s")
+	command.Stdin = strings.NewReader(script)
+	out, err := t.deployer.execute(ctx, command, 900*time.Second)
+	if err != nil {
+		return "", fmt.Errorf("SSH deployment timed out or failed; inspect service state before retrying: %w", err)
+	}
+	if !out.Success() {
+		return "", fmt.Errorf("ssh command failed on %s: %s %s", t.host, redactDeploymentOutput(string(out.Stdout)), redactDeploymentOutput(string(out.Stderr)))
+	}
+	return strings.ToValidUTF8(string(out.Stdout), "\ufffd"), nil
+}
+func (t sshTarget) copy(ctx context.Context, local, remote string) error {
+	command := exec.Command("scp", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-P", strconv.Itoa(int(t.port)), local, t.user+"@"+t.host+":"+remote)
+	out, err := t.deployer.execute(ctx, command, runcmd.DefaultTimeout)
+	if err != nil {
+		return fmt.Errorf("scp failed: %w", err)
+	}
+	if !out.Success() {
+		return fmt.Errorf("scp to %s failed: %s", t.host, out.Stderr)
+	}
+	digest, err := fileDigest(local, false)
+	if err != nil {
+		return err
+	}
+	_, err = t.exec(ctx, fmt.Sprintf("printf '%%s  %%s\\n' '%s' '%s' | sha256sum -c -", digest, remote))
+	return err
+}
+func (t sshTarget) staging(ctx context.Context) (string, error) {
+	value, err := t.exec(ctx, "umask 077; mktemp -d /tmp/ttstack-deploy.XXXXXXXXXX")
+	if err != nil {
+		return "", err
+	}
+	path := strings.TrimSpace(value)
+	if err := validateDeployPath(path, true); err != nil {
+		return "", err
+	}
+	const prefix = "/tmp/ttstack-deploy."
+	if !strings.HasPrefix(path, prefix) || strings.Contains(strings.TrimPrefix(path, prefix), "/") {
+		return "", fmt.Errorf("invalid remote staging directory")
+	}
+	return path, nil
+}
+func (d *deployer) distributed(ctx context.Context, path string) error {
+	content, err := readUTF8(path, "read config")
+	if err != nil {
+		return err
+	}
+	cfg, err := parseDeployConfig(content)
+	if err != nil {
+		return fmt.Errorf("parse deploy.toml: %w", err)
+	}
+	if err := validateDeployConfig(cfg); err != nil {
+		return err
+	}
+	for _, agent := range cfg.Agents {
+		if _, err := parseDisk(agent.DiskTotal); err != nil {
+			return err
+		}
+		if _, err := model.ParseStorage(agent.Storage); err != nil {
+			return err
+		}
+	}
+	release, prefix, user := cfg.General.ReleaseDir, cfg.General.Prefix, cfg.General.User
+	home := "/home/" + user
+	for _, name := range []string{"tt", "tt-ctl", "tt-agent"} {
+		binary := filepath.Join(release, name)
+		if !fileExists(binary) {
+			return fmt.Errorf("%s not found (run 'cargo build --release')", binary)
+		}
+	}
+	sidecar := path + ".api-key"
+	var key string
+	if cfg.General.APIKey != nil {
+		key, err = parseDeploymentKey(*cfg.General.APIKey)
+		if err != nil {
+			return err
+		}
+		if err := saveConfigFile(sidecar, key+"\n"); err != nil {
+			return fmt.Errorf("API key staging file: %w", err)
+		}
+	} else if fileExists(sidecar) {
+		content, err := readUTF8(sidecar, "read deployment key")
+		if err != nil {
+			return err
+		}
+		key, err = parseDeploymentKey(content)
+		if err != nil {
+			return err
+		}
+	} else {
+		var target sshTarget
+		if controller := cfg.Controller; controller != nil {
+			target = sshTarget{controller.SSHUser, controller.Host, controller.SSHPort, d}
+		} else if len(cfg.Agents) > 0 {
+			agent := cfg.Agents[0]
+			target = sshTarget{agent.SSHUser, agent.Host, agent.SSHPort, d}
+		} else {
+			return fmt.Errorf("deploy config has no controller or agents")
+		}
+		script := fmt.Sprintf("sudo sh -c 'if [ -f %s/etc/tt-ctl.env ]; then cat %s/etc/tt-ctl.env; elif [ -f %s/etc/tt-agent.env ]; then cat %s/etc/tt-agent.env; fi'", prefix, prefix, prefix, prefix)
+		previous, err := target.exec(ctx, script)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(previous) == "" {
+			key = generateAPIKey()
+		} else {
+			key, err = parseDeploymentKey(previous)
+			if err != nil {
+				return err
+			}
+		}
+		if err := saveSecret(sidecar, key); err != nil {
+			return err
+		}
+	}
+	environment := "TT_API_KEY=" + key + "\n"
+	if controller := cfg.Controller; controller != nil {
+		d.app.out("\n[deploy] === %s (controller) ===", controller.Host)
+		target := sshTarget{controller.SSHUser, controller.Host, controller.SSHPort, d}
+		tmp, err := target.staging(ctx)
+		if err != nil {
+			return err
+		}
+		for _, name := range []string{"tt-ctl", "tt"} {
+			if err := target.copy(ctx, filepath.Join(release, name), tmp+"/"+name); err != nil {
+				return err
+			}
+			d.app.out("[deploy] uploaded %s", name)
+		}
+		dataDir := home + "/ctl"
+		if controller.DataDir != nil {
+			dataDir = *controller.DataDir
+		}
+		command := fmt.Sprintf("%s/bin/tt-ctl --listen %s --data-dir %s", prefix, controller.Listen, dataDir)
+		script := remoteSetupScript("tt-ctl", command, user, home, prefix, tmp, []string{"tt-ctl", "tt"}, []string{home + "/ctl"}, controller.Host, &envFile{prefix + "/etc/tt-ctl.env", environment})
+		result, deployErr := target.exec(ctx, script)
+		_, cleanupErr := target.exec(ctx, "rm -rf -- "+tmp)
+		if deployErr != nil {
+			return deployErr
+		}
+		if cleanupErr != nil {
+			return cleanupErr
+		}
+		fmt.Fprint(d.app.stdout, result)
+	}
+	for index, agent := range cfg.Agents {
+		d.app.out("\n[deploy] === %s (agent %d) ===", agent.Host, index)
+		target := sshTarget{agent.SSHUser, agent.Host, agent.SSHPort, d}
+		tmp, err := target.staging(ctx)
+		if err != nil {
+			return err
+		}
+		agentRelease := release
+		if agent.ReleaseDir != nil {
+			agentRelease = *agent.ReleaseDir
+		}
+		if err := target.copy(ctx, filepath.Join(agentRelease, "tt-agent"), tmp+"/tt-agent"); err != nil {
+			return err
+		}
+		d.app.out("[deploy] uploaded tt-agent")
+		imageDir, runtimeDir := home+"/images", home+"/runtime"
+		if agent.ImageDir != nil {
+			imageDir = *agent.ImageDir
+		}
+		if agent.RuntimeDir != nil {
+			runtimeDir = *agent.RuntimeDir
+		}
+		disk, err := parseDisk(agent.DiskTotal)
+		if err != nil {
+			return err
+		}
+		command := fmt.Sprintf("%s/bin/tt-agent --listen %s --image-dir %s --runtime-dir %s --data-dir %s/data --storage %s --cpu-total %d --mem-total %d --disk-total %d", prefix, agent.Listen, imageDir, runtimeDir, home, agent.Storage, agent.CPUTotal, agent.MemTotal, disk)
+		if agent.HostID != nil {
+			command += " --host-id " + *agent.HostID
+		}
+		if agent.ContainerRuntime != nil {
+			command += " --container-runtime " + *agent.ContainerRuntime
+		}
+		if agent.EnableDiskBackup {
+			command += " --enable-disk-backup"
+		}
+		dirs := []string{}
+		if agent.Storage == "file" {
+			dirs = []string{imageDir, runtimeDir}
+		}
+		script := remoteSetupScript("tt-agent", command, user, home, prefix, tmp, []string{"tt-agent"}, dirs, agent.Host, &envFile{prefix + "/etc/tt-agent.env", environment})
+		result, deployErr := target.exec(ctx, script)
+		_, cleanupErr := target.exec(ctx, "rm -rf -- "+tmp)
+		if deployErr != nil {
+			return deployErr
+		}
+		if cleanupErr != nil {
+			return cleanupErr
+		}
+		fmt.Fprint(d.app.stdout, result)
+	}
+	d.app.out("\n[deploy] distributed deployment complete")
+	d.app.out("[deploy] API key stored in %s (0600). Configure the CLI using TT_API_KEY.", sidecar)
+	if controller := cfg.Controller; controller != nil {
+		parts := strings.Split(controller.Listen, ":")
+		port := parts[len(parts)-1]
+		d.app.out("[deploy] Run with TT_API_KEY set: tt config %s:%s", controller.Host, port)
+	}
+	return nil
+}

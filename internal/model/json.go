@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -44,6 +45,30 @@ type Map[K comparable, V any] map[K]V
 func (v Map[K, V]) MarshalJSON() ([]byte, error) {
 	if v == nil {
 		return []byte("{}"), nil
+	}
+	kind := reflect.TypeFor[K]().Kind()
+	if kind >= reflect.Uint && kind <= reflect.Uint64 {
+		keys := make([]K, 0, len(v))
+		for key := range v {
+			keys = append(keys, key)
+		}
+		sort.Slice(keys, func(i, j int) bool { return reflect.ValueOf(keys[i]).Uint() < reflect.ValueOf(keys[j]).Uint() })
+		out := []byte{'{'}
+		for i, key := range keys {
+			if i > 0 {
+				out = append(out, ',')
+			}
+			name := strconv.FormatUint(reflect.ValueOf(key).Uint(), 10)
+			out = append(out, '"')
+			out = append(out, name...)
+			out = append(out, '"', ':')
+			value, err := json.Marshal(v[key])
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, value...)
+		}
+		return append(out, '}'), nil
 	}
 	return json.Marshal(map[K]V(v))
 }

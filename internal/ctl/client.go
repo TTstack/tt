@@ -25,7 +25,12 @@ func newAgentClient(key *string, timeout time.Duration) (*agentClient, error) {
 			return nil, err
 		}
 	}
-	return &agentClient{http: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, key: key}, nil
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DisableKeepAlives = true
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	transport.Protocols = protocols
+	return &agentClient{http: &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, key: key}, nil
 }
 func (c *agentClient) request(ctx context.Context, method, address, path string, body any, headers http.Header) (*http.Response, error) {
 	var reader io.Reader

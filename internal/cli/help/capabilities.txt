@@ -1,0 +1,9 @@
+Show technical engine/storage support, including experimental platforms
+
+Usage: tt capabilities [OPTIONS]
+
+Options:
+      --json               Print the complete versioned matrix as JSON
+  -s, --server <SERVER>    Controller address; saved credentials are reused only for the same address
+  -k, --api-key <API_KEY>  API key for controller authentication [env: TT_API_KEY=]
+  -h, --help               Print help

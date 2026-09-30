@@ -1,0 +1,70 @@
+#!/bin/sh
+set -e
+
+if [ "$(uname -s)" != "Linux" ]; then
+    echo "deployment requires a Linux host" >&2
+    exit 1
+fi
+
+# Create service user (portable: works on glibc and busybox)
+if id {user} >/dev/null 2>&1; then
+    echo "[deploy] user '{user}' exists"
+else
+    echo "[deploy] creating user '{user}'"
+    if command -v useradd >/dev/null 2>&1; then
+        sudo useradd -r -m -d {home} -s /bin/sh {user}
+    elif command -v adduser >/dev/null 2>&1; then
+        sudo adduser -D -h {home} -s /bin/sh {user} 2>/dev/null || true
+    fi
+fi
+
+# Create directories
+sudo mkdir -p {prefix}/bin {prefix}/etc {home}/ctl {dir_list}
+
+# Install binaries
+{bin_copies}
+
+# Set ownership
+sudo chown {user}:{user} {home} {home}/ctl
+{env_file_setup}
+# Detect init system and install service
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    echo "[deploy] using systemd"
+    # Migrate documented mount guards from a previously edited generated unit.
+    if [ -f /etc/systemd/system/{service_name}.service ]; then
+        guards=$(sudo awk '/^RequiresMountsFor=/ {{u=u $0 "\n"}} /^ExecStartPre=.*mountpoint/ {{s=s $0 "\n"}} END {{if (u != "" || s != "") printf "[Unit]\n%s[Service]\n%s",u,s}}' /etc/systemd/system/{service_name}.service)
+        if [ -n "$guards" ]; then
+            sudo mkdir -p /etc/systemd/system/{service_name}.service.d
+            printf '%s\n' "$guards" | sudo tee /etc/systemd/system/{service_name}.service.d/90-ttstack-mounts.conf >/dev/null
+        fi
+    fi
+    sudo tee /etc/systemd/system/{service_name}.service > /dev/null <<'UNIT'
+{systemd_unit}
+UNIT
+    sudo systemctl daemon-reload
+    sudo systemctl enable {service_name}
+    sudo systemctl restart {service_name}
+    sleep 1
+    sudo systemctl is-active {service_name} && echo "[deploy] {service_name} is active"
+elif command -v rc-service >/dev/null 2>&1; then
+    echo "[deploy] using OpenRC"
+    sudo tee /etc/init.d/{service_name} > /dev/null <<'INITD'
+{openrc_initd}
+INITD
+    sudo chmod 755 /etc/init.d/{service_name}
+    sudo rc-update add {service_name} default 2>/dev/null || true
+    sudo rc-service {service_name} restart 2>/dev/null || sudo rc-service {service_name} start
+    sleep 1
+    sudo rc-service {service_name} status && echo "[deploy] {service_name} is running"
+else
+    echo "[deploy] WARNING: no known init system; starting {service_name} manually"
+    sudo pkill -x '{service_name}' 2>/dev/null || true
+    sleep 1
+    sudo nohup sh -c '{env_source}{exec_cmd}' > /var/log/{service_name}.log 2>&1 &
+    sleep 2
+    pgrep -x '{service_name}' && echo "[deploy] {service_name} started (manual)"
+fi
+
+# Cleanup
+rm -rf {tmp}
+echo "[deploy] {service_name} deployed on {host_label}"
