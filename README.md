@@ -8,6 +8,25 @@ have a lifetime, and can be stopped, restarted, resized and deleted.
 This repository is a work in progress. The current state is **documentation only**;
 implementation lands in phases described in [docs/roadmap.md](docs/roadmap.md).
 
+## Why Go
+
+TTstack is a control plane: it schedules workloads, keeps state, and drives
+hypervisors and container runtimes through their CLIs and devices. The
+CPU-intensive work happens inside the guests, so the language is chosen for
+engineering properties rather than raw speed:
+
+- fast builds and a closed, pure-Go dependency set make frequent
+  rebuild-and-redeploy across a fleet cheap;
+- cross-compilation from one machine covers every target (including the
+  experimental FreeBSD hosts) without a cross toolchain;
+- statically linked single binaries deploy by file copy, with no libc or
+  shared-library coupling;
+- the standard library already covers the HTTP server and client, JSON, SQL,
+  process execution, hashing and testing.
+
+The full rationale, including what is given up and how the port compensates, is
+in [docs/plan.md §3](docs/plan.md#3-why-go).
+
 ## Compatibility
 
 The Go implementation targets **full wire compatibility** with the Rust release:
