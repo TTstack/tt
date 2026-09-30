@@ -1,0 +1,57 @@
+{
+  "cargo_lock_sha256": "791f251f410e56db0ba247d5c0a8c82cdd1f97e26f8b5d74742042209192f62c",
+  "identifiers": [
+    {
+      "id": "",
+      "tap": "tt-6ea523c53def"
+    },
+    {
+      "id": "vm1",
+      "tap": "tt-e9e453b4d5a5"
+    },
+    {
+      "id": "vm2",
+      "tap": "tt-fc7c4d3fbec3"
+    },
+    {
+      "id": "83b7e95-test-vm",
+      "tap": "tt-ab2cb9caf2f1"
+    },
+    {
+      "id": "long-id-abcdefghijklmnopqrstuvwxyz",
+      "tap": "tt-75e5d7552606"
+    },
+    {
+      "id": "虚拟机",
+      "tap": "tt-96dc02c325f2"
+    }
+  ],
+  "ips": [
+    {
+      "index": 0,
+      "ip": "10.10.0.2"
+    },
+    {
+      "index": 1,
+      "ip": "10.10.0.3"
+    },
+    {
+      "index": 252,
+      "ip": "10.10.0.254"
+    },
+    {
+      "index": 253,
+      "ip": "10.10.1.1"
+    },
+    {
+      "index": 254,
+      "ip": "10.10.1.2"
+    },
+    {
+      "index": 999,
+      "ip": "10.10.3.239"
+    }
+  ],
+  "isolation_rules": "\nadd table bridge tt_e9e453b4d5a5\nflush table bridge tt_e9e453b4d5a5\nadd chain bridge tt_e9e453b4d5a5 source { type filter hook prerouting priority -300; policy accept; }\nadd rule bridge tt_e9e453b4d5a5 source iifname \"tt-e9e453b4d5a5\" ether saddr != 02:54:0a:0a:00:02 drop\nadd rule bridge tt_e9e453b4d5a5 source iifname \"tt-e9e453b4d5a5\" ether type arp arp saddr ip != 10.10.0.2 drop\nadd rule bridge tt_e9e453b4d5a5 source iifname \"tt-e9e453b4d5a5\" ether type arp arp saddr ether != 02:54:0a:0a:00:02 drop\nadd rule bridge tt_e9e453b4d5a5 source iifname \"tt-e9e453b4d5a5\" ether type arp arp daddr ip != 10.10.0.1 drop\nadd rule bridge tt_e9e453b4d5a5 source iifname \"tt-e9e453b4d5a5\" ether type ip ip saddr != 10.10.0.2 drop\nadd rule bridge tt_e9e453b4d5a5 source iifname \"tt-e9e453b4d5a5\" ether type != { ip, arp } drop\nadd chain bridge tt_e9e453b4d5a5 peers { type filter hook forward priority -300; policy accept; }\nadd rule bridge tt_e9e453b4d5a5 peers iifname \"tt-e9e453b4d5a5\" drop\nadd rule bridge tt_e9e453b4d5a5 peers oifname \"tt-e9e453b4d5a5\" drop\nadd table inet tt_e9e453b4d5a5\nflush table inet tt_e9e453b4d5a5\nadd chain inet tt_e9e453b4d5a5 host { type filter hook input priority -10; policy accept; }\nadd rule inet tt_e9e453b4d5a5 host iifname \"tt0\" ip saddr 10.10.0.2 ct direction reply accept\nadd rule inet tt_e9e453b4d5a5 host iifname \"tt0\" ip saddr 10.10.0.2 drop\nadd chain inet tt_e9e453b4d5a5 routed { type filter hook forward priority -10; policy accept; }\nadd rule inet tt_e9e453b4d5a5 routed iifname \"tt0\" ip saddr 10.10.0.2 ct direction reply accept\nadd rule inet tt_e9e453b4d5a5 routed iifname \"tt0\" ip saddr 10.10.0.2 ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 } drop\nadd rule inet tt_e9e453b4d5a5 routed iifname \"tt0\" oifname \"tt0\" ip daddr 10.10.0.2 drop\n",
+  "revision": "1ad83a9feed5fac820d74b5e7ef752e50a552740"
+}

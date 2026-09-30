@@ -1,0 +1,22 @@
+
+add table bridge {t}
+flush table bridge {t}
+add chain bridge {t} source { type filter hook prerouting priority -300; policy accept; }
+add rule bridge {t} source iifname "{tap}" ether saddr != {mac} drop
+add rule bridge {t} source iifname "{tap}" ether type arp arp saddr ip != {ip} drop
+add rule bridge {t} source iifname "{tap}" ether type arp arp saddr ether != {mac} drop
+add rule bridge {t} source iifname "{tap}" ether type arp arp daddr ip != {BRIDGE_ADDR} drop
+add rule bridge {t} source iifname "{tap}" ether type ip ip saddr != {ip} drop
+add rule bridge {t} source iifname "{tap}" ether type != { ip, arp } drop
+add chain bridge {t} peers { type filter hook forward priority -300; policy accept; }
+add rule bridge {t} peers iifname "{tap}" drop
+add rule bridge {t} peers oifname "{tap}" drop
+add table inet {t}
+flush table inet {t}
+add chain inet {t} host { type filter hook input priority -10; policy accept; }
+add rule inet {t} host iifname "{BRIDGE_NAME}" ip saddr {ip} ct direction reply accept
+add rule inet {t} host iifname "{BRIDGE_NAME}" ip saddr {ip} drop
+add chain inet {t} routed { type filter hook forward priority -10; policy accept; }
+add rule inet {t} routed iifname "{BRIDGE_NAME}" ip saddr {ip} ct direction reply accept
+add rule inet {t} routed iifname "{BRIDGE_NAME}" ip saddr {ip} ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 } drop
+add rule inet {t} routed iifname "{BRIDGE_NAME}" oifname "{BRIDGE_NAME}" ip daddr {ip} drop

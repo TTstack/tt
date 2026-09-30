@@ -28,7 +28,7 @@ func FromHeaders(key, revision *string, action model.BackupAction, generation *s
 }
 func Validate(r model.BackupRequest) error {
 	for _, value := range []string{r.OperationID, r.ExpectedRevision} {
-		if !validToken(value) {
+		if !ValidToken(value) {
 			return fmt.Errorf("invalid backup operation ID or revision")
 		}
 	}
@@ -36,7 +36,7 @@ func Validate(r model.BackupRequest) error {
 		if r.Generation == nil {
 			return fmt.Errorf("restore requires a generation")
 		}
-		if !validToken(*r.Generation) {
+		if !ValidToken(*r.Generation) {
 			return fmt.Errorf("invalid backup generation")
 		}
 	} else if r.Generation != nil {
@@ -88,9 +88,9 @@ func ErrorStatus(message string) int {
 	}
 }
 
-// Match uuid::Uuid::parse_str, including its case-sensitive URN prefix and
+// ValidToken matches uuid::Uuid::parse_str, including its case-sensitive URN prefix and
 // actual braces. google/uuid.Parse alone accepts arbitrary 38-byte wrappers.
-func validToken(value string) bool {
+func ValidToken(value string) bool {
 	if len(value) == 45 && !strings.HasPrefix(value, "urn:uuid:") {
 		return false
 	}

@@ -254,6 +254,13 @@ user property `ttstack:backup=<vm-id>:<uuid>`; Firecracker zvol layout keeps
 `vmlinux` in the parent dataset and the root filesystem in the `rootfs` child
 volume, symlinked as `rootfs.ext4` inside the clone.
 
+Backup dependency witnesses hash the exact compact serde JSON of `VmOptions`
+with `requested_disk` normalized to zero, followed by each dependency's basename
+and file bytes in the recorded order. CPU/RAM changes do not change this input.
+As with guest-config digests, Go HTML/Unicode escaping must not change these
+bytes. The storage layer takes this serialized options string unchanged; the
+agent builds it when preparing a backup context.
+
 ## 5. Identifiers that must match bit-exactly
 
 | Identifier | Rule |
