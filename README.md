@@ -5,13 +5,13 @@
 containers across a small fleet of hosts. Workloads are grouped into environments,
 have a lifetime, and can be stopped, restarted, resized and deleted.
 
-**Phases 0–6 are implemented**, including the CLI, deployment, image recipes,
-agent, controller and offline converter. Unit and native FreeBSD race/integration
-checks pass, with both CLIs tested against all four Go/Rust controller-agent
-combinations using synthetic inventory. Real guest and Linux acceptance remains
-in [phase 7](docs/roadmap.md); the full port is not yet validated end to end.
-See the [HTTP API](docs/rest-api.md), [deployment guide](docs/deployment.md) and
-[image guide](docs/guest-images.md).
+**Phases 0–7 are implemented and validated** against the pinned Rust 0.6.0
+release. The CLI, deployment, image recipes, agent, controller and offline
+converter are functional. Native testing covers mixed Go/Rust services, real
+QEMU/Firecracker file and zvol workflows, Docker, isolated systemd deployment,
+and experimental FreeBSD Jail/bhyve. See the [Linux](docs/validation/linux-native-2026-09-30.md)
+and [FreeBSD](docs/validation/freebsd-native-2026-09-30.md) evidence for the tested
+matrix and limits, and [feature coverage](docs/validation/feature-coverage.md).
 
 ## Why Go
 
@@ -42,9 +42,9 @@ The Go implementation targets **full wire compatibility** with the Rust release:
 - the same host-local contracts that survive a binary swap (tap names, bridge
   addresses, runtime paths, systemd units, key files).
 
-The completed port is intended to let a Rust controller talk to a Go agent and a
-Go controller manage a compatible fleet. Synthetic service interoperability passes; real guest acceptance remains in
-the roadmap.
+A Rust controller can talk to a Go agent, and a Go controller can manage a
+compatible mixed fleet. Native service, state and guest interoperability passes for the recorded
+validation matrix.
 The exact contract is written down in [docs/compatibility.md](docs/compatibility.md).
 
 ## Architecture
@@ -81,8 +81,9 @@ make cross     # compile Linux/amd64 and FreeBSD/amd64 without CGo
 
 ## Quick start (single Linux/systemd host)
 
-The CLI implements this workflow. Native Linux acceptance is still pending;
-prepare the host prerequisites in [deployment.md](docs/deployment.md).
+This workflow is covered by native validation in an isolated Linux/systemd root.
+Prepare the host prerequisites in [deployment.md](docs/deployment.md), and wait
+for API/image-catalog readiness when automating the commands.
 ```bash
 make release
 sudo ./bin/tt deploy all --release-dir ./bin

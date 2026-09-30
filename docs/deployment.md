@@ -15,6 +15,10 @@ unset TT_API_KEY
 /opt/ttstack/bin/tt host add 127.0.0.1:9100
 ```
 
+When automating, wait for `tt status` to succeed after deployment and for the
+prepared image to appear in `tt image list` before creating an environment.
+Service activation and the periodic image catalog are separate readiness checks.
+
 Use `deploy agent` or `deploy ctl` to install one role. The agent runs as root;
 the controller runs as `ttstack`. Binaries go to `/opt/ttstack/bin`, state and
 images to `/home/ttstack`, units to `/etc/systemd/system`. Existing role keys are

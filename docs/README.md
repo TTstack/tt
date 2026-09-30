@@ -19,8 +19,8 @@ Feature guides and remaining documentation:
 | [Deployment](deployment.md) | Implemented in phase 6 |
 | [Guest images](guest-images.md) | Implemented in phase 6 |
 | [HTTP API](rest-api.md) | Implemented in phase 5 |
-| `ssh.md` | Phase 4 (agent SSH bootstrap) |
-| `disk-backup.md` | Phase 4/5 (backup protocol) |
+| [Initial SSH](ssh.md) | Implemented; native acceptance tracked in phase 7 |
+| [Disk backup](disk-backup.md) | Implemented; native acceptance tracked in phase 7 |
 
 ## Reading paths
 
@@ -43,3 +43,7 @@ preserve the observable contract.
 
 - [Shared-core parity, 2026-09-30](validation/shared-core-2026-09-30.md): Rust wire fixtures, bounded commands, native FreeBSD race/integration checks and limits.
 - [Storage/network parity, 2026-09-30](validation/storage-network-2026-09-30.md): Rust network fixtures, native FreeBSD file/ext4/ZFS tests, ownership and crash recovery.
+
+- [Feature coverage](validation/feature-coverage.md): every pinned README core behavior mapped to implementation/tests.
+- [Native FreeBSD acceptance](validation/freebsd-native-2026-09-30.md): real Jail/bhyve SSH, live swaps and zvol restore/replay.
+- [Native Linux acceptance](validation/linux-native-2026-09-30.md): QEMU/Firecracker file/zvol, mixed fleet/networking, Docker and isolated systemd deployment.

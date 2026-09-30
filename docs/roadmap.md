@@ -37,6 +37,9 @@ multiple phases or mark a phase complete with missing acceptance work.
 Use local tests first, then the authorized dedicated FreeBSD test host for early
 service, state, CLI and available bhyve/Jail lifecycle checks. Only after these
 flows are stable add the authorized Linux hosts for wider engine/backend checks.
+The dedicated FreeBSD host has no CPU fraction restriction under the updated
+operator authorization; keep guest memory conservative and monitor headroom to
+avoid OOM. The half-capacity rule below still applies to both shared Linux hosts.
 Private access details remain outside the repository. Native FreeBSD capability
 limits remain explicit even when tests pass.
 
@@ -257,6 +260,15 @@ Acceptance
   use. Minimum-toolchain builds and experimental FreeBSD binaries still pass.
 
 ## Phase 7 — Compatibility acceptance
+
+Status: complete. [FreeBSD evidence](validation/freebsd-native-2026-09-30.md)
+records real Jail/bhyve lifecycle, live implementation swaps and bhyve zvol recovery.
+[Linux evidence](validation/linux-native-2026-09-30.md) records QEMU/Firecracker on
+file/zvol, real SSH and resource growth, replay and held-snapshot recovery, a mixed
+fleet with isolated networking/outer SSH ingress, private Docker and systemd
+workflows. [Feature coverage](validation/feature-coverage.md) maps every pinned
+README boundary to tests. External-runtime/platform limits are explicit in those
+reports; no fleet-capacity or stress-test claim is made.
 
 Deliverables
 
