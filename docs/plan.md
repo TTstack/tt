@@ -29,7 +29,7 @@ Goals:
 4. Idiomatic Go: `cmd/` binaries, `internal/` domain packages, `context`, `net/http`,
    `database/sql`, table-driven tests. Structure follows Go practice, not the Rust
    module tree.
-5. Minimal dependencies: the standard library plus four modules (see §5).
+5. Minimal dependencies: the standard library plus four modules (see §6).
 
 Non-goals (matching the Rust product boundaries):
 
@@ -40,7 +40,66 @@ Non-goals (matching the Rust product boundaries):
 - No TLS or identity system for the service APIs; authentication stays a single
   shared bearer key.
 
-## 3. Confirmed decisions
+## 3. Why Go
+
+TTstack is a control plane, not a compute engine. It schedules workloads, keeps
+state in SQLite, serves HTTP, drives hypervisors and container runtimes through
+their CLIs and devices, and manages files, ZFS snapshots and firewall rules. The
+CPU-intensive work happens inside the guests; nothing in TTstack itself is
+CPU-bound. The hot paths are process spawns, syscalls and network/database
+waits, where Go's performance is equivalent for all practical purposes, and
+where a systems language's zero-cost abstractions and manual memory control buy
+nothing. The language choice is therefore driven by engineering properties:
+
+1. **Build and iteration time.** The Rust workspace pulls in tokio, axum,
+   reqwest with rustls/AWS-LC and a bundled SQLite, so a clean release build
+   takes minutes and needs a C/C++ toolchain. The Go tree compiles in seconds,
+   and the SQLite driver is pure Go, so no native build dependency is needed at
+   all. For an operations tool that is rebuilt and redeployed across a small
+   fleet on most changes, that difference is felt every iteration.
+
+2. **Cross-compilation for the fleet.** `GOOS=linux|freebsd GOARCH=amd64 go
+   build` produces any target from any machine with no cross toolchain. This
+   port keeps the experimental FreeBSD bhyve/jail paths, and the Rust release
+   needs a separate target toolchain and libc-aware builds for the same reach —
+   its deployment guide has to warn that a glibc binary cannot run on a musl
+   host.
+
+3. **Self-contained static binaries.** A Go build can be one statically linked
+   executable with no libc or shared-library coupling, which is exactly what the
+   deployment path needs: copy the file over SSH, verify it, restart the
+   service. There is no build-host/fleet-host runtime drift to reason about.
+
+4. **A complete standard library.** Server and client HTTP (including redirect
+   control and Unix-socket transports), JSON, database/sql, process execution,
+   hashing, filesystem handling, flags and `httptest` all ship with the
+   toolchain. The Rust release needs roughly ten external crates plus native
+   dependencies for the same surface; the Go port keeps a closed set of four
+   modules (see §6).
+
+5. **A concurrency model that matches the problem.** The system is many
+   concurrent, mostly-waiting operations: per-environment mutation locks, 15 s
+   reconciliation loops, 60 s expiry sweeps, bounded worker pools, timeouts and
+   cancellation. Goroutines, channels and `context` express that directly, with
+   no async function coloring and no `spawn_blocking` plumbing for synchronous
+   storage work.
+
+6. **Operational tooling.** The race detector, `pprof`, coverage and the uniform
+   `gofmt`/`go vet`/`go test` toolchain keep a small codebase verifiable, and a
+   dependency-light tree is easier to hand to contributors and to audit.
+
+What is given up, and how it is handled:
+
+- Rust's type system catches classes of defects at compile time (exhaustive enum
+  matching, ownership, no nil dereference). Go compensates with a small,
+  explicit, test-heavy codebase: strict enum marshaling, validation at every
+  boundary, the same conservative lifetime rules as the reference, and golden
+  fixtures. Crucially, the Rust implementation is the behavioral oracle, so
+  parity is *verified* against a running reference rather than argued from types.
+- Garbage collection and runtime overhead are irrelevant in this role: a few
+  MiB per service process, against hosts whose guest memory is measured in GiB.
+
+## 4. Confirmed decisions
 
 | Decision | Choice |
 |---|---|
@@ -52,7 +111,7 @@ Non-goals (matching the Rust product boundaries):
 | Author metadata | `fh <hui.fan@mail.ru>`, matching TTstack |
 | Module path | `github.com/TTstack/tt` |
 
-## 4. What "compatible" means precisely
+## 5. What "compatible" means precisely
 
 Three levels, all in scope:
 
@@ -75,7 +134,7 @@ Three levels, all in scope:
 
 Details, field by field, are in [compatibility.md](compatibility.md).
 
-## 5. Technology choices
+## 6. Technology choices
 
 | Concern | Rust release | Go implementation |
 |---|---|---|
@@ -108,7 +167,7 @@ with a 300 s default timeout and 4 MiB per-stream capture; 15 s background loops
 - Guest log capture and process supervision use Go primitives (goroutine reaper,
   `os/exec`) rather than detached threads, with identical file names and contents.
 
-## 6. Repository layout
+## 7. Repository layout
 
 ```text
 tt/
@@ -140,7 +199,7 @@ tt/
 Package-by-package responsibilities and the Rust mapping are in
 [architecture.md](architecture.md) and [mapping.md](mapping.md).
 
-## 7. Delivery phases
+## 8. Delivery phases
 
 Each phase ends with `gofmt -l`, `go vet ./...`, `go test ./...`, `go build ./...`
 all clean, and its own commit. Details and acceptance criteria per phase are in
@@ -157,7 +216,7 @@ all clean, and its own commit. Details and acceptance criteria per phase are in
 | 6 | `cli`: client, commands, `~/.ttconfig`, local + distributed deploy, image recipes | CLI golden output tests; deploy script tests; recipe dry runs |
 | 7 | Compatibility acceptance: cross-implementation tests, converter tool, docs | Go controller ↔ Rust agent and Rust controller ↔ Go agent smoke runs on an authorized host |
 
-## 8. Verification strategy
+## 9. Verification strategy
 
 1. **Golden JSON fixtures.** For every wire type, the Rust build emits canonical
    JSON (including omission/null edge cases); Go tests decode and re-encode it and
@@ -175,7 +234,7 @@ all clean, and its own commit. Details and acceptance criteria per phase are in
    one Docker workload per implementation pairing. Bounded, cleaned up, no stress
    testing, never against production guests.
 
-## 9. Risks and mitigations
+## 10. Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -186,7 +245,7 @@ all clean, and its own commit. Details and acceptance criteria per phase are in
 | Scope creep into "improvements" | Non-goals in §2; compatibility document is the review checklist |
 | FreeBSD paths untestable on Linux hosts | Same runtime gating as Rust; code review against source; document as experimental |
 
-## 10. Definition of done
+## 11. Definition of done
 
 The port is complete when:
 
