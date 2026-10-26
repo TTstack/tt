@@ -574,6 +574,58 @@ func TestHostRegistrationRetainsReservationsAndRejectsPeerReplacement(t *testing
 	}
 }
 
+func TestHostMarkerReregistrationRetainsVMsAndReservations(t *testing.T) {
+	s, m := controllerFixture(t)
+	seedController(t, s, m)
+	ctx := context.Background()
+	host, err := s.db.GetHost(ctx, "host")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := host.Addr
+	vm, err := s.db.GetVM(ctx, "vm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm.PendingResources = &model.VmResources{CPU: 1, Mem: 128, Disk: 32}
+	if err := s.db.PutVM(ctx, vm); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.q.ExecContext(ctx, "UPDATE hosts SET data=?1 WHERE id='host'", "{broken json"); err != nil {
+		t.Fatal(err)
+	}
+	refreshController(t, s)
+	// A later failed refresh may replace the marker's diagnostic; recovery
+	// must recognize its address/state, not the current error string.
+	staleRevision := s.revision.Load()
+	stale := hostSnapshot{err: fmt.Errorf("unreachable marker address")}
+	if err := s.applySnapshot(ctx, host.ID, stale, &staleRevision, nil); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Lock()
+	m.vms = nil // An absent agent snapshot must not erase tracked intent.
+	m.mu.Unlock()
+	updated, status, apiErr := s.registerHost(ctx, api.RegisterHostReq{Addr: address})
+	if apiErr != nil || status != 200 {
+		t.Fatal(status, apiErr)
+	}
+	if updated.State != model.HostOnline || updated.Addr != address || updated.Storage != model.File || updated.RegisteredAt != s.now() || updated.Resource.CPUUsed < vm.CPU || updated.Resource.MemUsed < vm.Mem || updated.Resource.DiskUsed < vm.ReservedDisk() || updated.Resource.VmCount != 1 {
+		t.Fatal(updated)
+	}
+	// A refresh begun while the host was a marker cannot put it offline again.
+	if err := s.applySnapshot(ctx, host.ID, stale, &staleRevision, nil); err != nil {
+		t.Fatal(err)
+	}
+	host, err = s.db.GetHost(ctx, host.ID)
+	if err != nil || host.State != model.HostOnline || host.Addr != address {
+		t.Fatal(host, err)
+	}
+	detail, apiErr := s.environmentDetail(ctx, vm.EnvID)
+	if apiErr != nil || len(detail.VMs) != 1 || detail.VMs[0].ID != vm.ID || detail.VMs[0].PendingResources == nil || *detail.VMs[0].PendingResources != *vm.PendingResources {
+		t.Fatal(detail, apiErr)
+	}
+}
+
 func TestFreshResizeRejectionReleasesOnlyItsNewIntent(t *testing.T) {
 	s, m := controllerFixture(t)
 	seedController(t, s, m)

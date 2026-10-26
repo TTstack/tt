@@ -222,3 +222,54 @@ func TestJailQueryAndMountErrorsRetainResources(t *testing.T) {
 		t.Fatal("unknown mount removed metadata")
 	}
 }
+
+func TestJailSSHSettingsRequireCompleteLeadingStanza(t *testing.T) {
+	const managed = "PermitRootLogin prohibit-password\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n"
+	for _, tc := range []struct{ name, original string }{
+		{"comment", "#PermitRootLogin prohibit-password\nPermitRootLogin no\n"},
+		{"partial", "PermitRootLogin prohibit-password\nPasswordAuthentication yes\nKbdInteractiveAuthentication yes\n"},
+		{"match", "Match User guest\n" + managed},
+		{"managed", managed + "# retained settings\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			root := filepath.Join(dir, "root")
+			if err := os.MkdirAll(filepath.Join(root, "etc/ssh"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			config := filepath.Join(root, "etc/ssh/sshd_config")
+			put(t, config, tc.original)
+			t.Setenv("PATH", dir)
+			t.Setenv("TT_ENGINE_TEST_DIR", dir)
+			t.Setenv("TT_ENGINE_TEST_ROOT", root)
+			fakeTool(t, dir, "jls", `if [ -e "$TT_ENGINE_TEST_DIR/alive" ]; then printf '{"jail-information":{"jail":[{"name":"tt-guest","path":"%s"}]}}' "$TT_ENGINE_TEST_ROOT"; else echo '{"jail-information":{"jail":[]}}'; fi`)
+			fakeTool(t, dir, "jail", `case "$3" in -c) : > "$TT_ENGINE_TEST_DIR/alive" ;; -r) /bin/rm "$TT_ENGINE_TEST_DIR/alive" ;; *) exit 2 ;; esac`)
+			fakeTool(t, dir, "mount", `exit 0`)
+			j := newJail()
+			j.runDir = dir
+			vm := testVM()
+			vm.Engine = model.Jail
+			ctx := context.Background()
+			var previous string
+			for attempt := range 2 {
+				if err := j.Create(ctx, vm, root, "directory", []string{"ssh-ed25519 fixture"}); err != nil {
+					t.Fatal(err)
+				}
+				data, err := os.ReadFile(config)
+				if err != nil || !strings.HasPrefix(string(data), managed) {
+					t.Fatal("missing global SSH settings", string(data), err)
+				}
+				if attempt > 0 && string(data) != previous {
+					t.Fatal("cold recreation duplicated SSH settings")
+				}
+				if !strings.HasSuffix(string(data), tc.original) {
+					t.Fatal("original SSH settings were discarded")
+				}
+				previous = string(data)
+				if err := j.Stop(ctx, vm); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
