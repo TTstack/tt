@@ -155,9 +155,11 @@ func (j *Jail) Create(ctx context.Context, vm *model.Vm, image, format string, k
 		if !utf8.Valid(old) {
 			return fmt.Errorf("read jail sshd config: invalid UTF-8")
 		}
-		// Cold recreation must not accumulate duplicate directives.
-		if !strings.Contains(string(old), "PermitRootLogin prohibit-password\n") {
-			if err := os.WriteFile(config, append([]byte("PermitRootLogin prohibit-password\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n"), old...), 0666); err != nil {
+		// Only the complete leading stanza proves all three global settings
+		// are installed. Comments and Match blocks must not suppress them.
+		const managedSSH = "PermitRootLogin prohibit-password\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n"
+		if !strings.HasPrefix(string(old), managedSSH) {
+			if err := os.WriteFile(config, append([]byte(managedSSH), old...), 0666); err != nil {
 				return fmt.Errorf("configure jail sshd: %w", err)
 			}
 		}

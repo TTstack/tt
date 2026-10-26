@@ -53,3 +53,4 @@ preserve the observable contract.
 - [Native Linux acceptance](validation/linux-native-2026-09-30.md): QEMU/Firecracker file/zvol, mixed fleet/networking, Docker and isolated systemd deployment.
 
 - [Independent audit resolution](validation/audit-resolution-2026-09-30.md): reproduced defects, rejected claims and regression scope.
+- [Review regression fixes, 2026-10-26](validation/review-fixes-2026-10-26.md): resize recovery, controller host-marker recovery and native Jail SSH verification on the authorized hosts.

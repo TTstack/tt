@@ -58,13 +58,33 @@ func (s *Server) registerHost(ctx context.Context, request api.RegisterHostReq) 
 		return nil, 0, internal(err)
 	}
 	for _, host := range existing {
-		if (host.ID == info.HostID && host.Addr != request.Addr) || (host.Addr == request.Addr && host.ID != info.HostID) {
+		recoveryMarker := host.State == model.HostOffline && host.Addr == ""
+		if (host.ID == info.HostID && host.Addr != request.Addr && !recoveryMarker) || (host.Addr == request.Addr && host.ID != info.HostID) {
 			return nil, 0, apiError(409, "host ID or address already belongs to a registered peer; drain and remove it before replacement")
 		}
 	}
 	for _, host := range existing {
 		if host.ID == info.HostID {
 			previous := host.Resource
+			if host.State == model.HostOffline && host.Addr == "" {
+				// The marker lost the host's counters, but tracked VMs may still
+				// carry pending reservations not present in the agent's snapshot.
+				vms, err := s.db.VMsByHost(ctx, host.ID)
+				if err != nil {
+					return nil, 0, internal(err)
+				}
+				tracked := model.Resource{}
+				for _, vm := range vms {
+					tracked.Account(vm)
+				}
+				previous.CPUUsed = max(previous.CPUUsed, tracked.CPUUsed)
+				previous.MemUsed = max(previous.MemUsed, tracked.MemUsed)
+				previous.DiskUsed = max(previous.DiskUsed, tracked.DiskUsed)
+				previous.VmCount = max(previous.VmCount, tracked.VmCount)
+				host.RegisteredAt = s.now()
+			}
+			host.Addr = request.Addr
+			host.Storage = info.Storage
 			host.Resource = info.Resource
 			host.Resource.CPUUsed = max(host.Resource.CPUUsed, previous.CPUUsed)
 			host.Resource.MemUsed = max(host.Resource.MemUsed, previous.MemUsed)
@@ -84,6 +104,7 @@ func (s *Server) registerHost(ctx context.Context, request api.RegisterHostReq) 
 			if err := s.db.PutHost(ctx, &host); err != nil {
 				return nil, 0, internal(err)
 			}
+			s.revision.Add(1)
 			return &host, 200, nil
 		}
 	}

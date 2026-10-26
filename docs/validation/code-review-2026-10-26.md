@@ -357,3 +357,7 @@ replay caveat (deployment.md floor note), `deploy all` full-capacity startup
 best-effort VM-row cleanup after engine destroy (conservative by contract),
 and the wire-message trivia slated for fixtures once the oracle tree is
 restored.
+
+The subsequent 24-hour commit review found regressions in the resize retry,
+host-marker recovery and Jail SSH changes. Their corrections and authorized-host
+verification are recorded in [review-fixes-2026-10-26.md](review-fixes-2026-10-26.md).

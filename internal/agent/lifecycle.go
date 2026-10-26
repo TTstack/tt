@@ -196,9 +196,10 @@ func (r *Runtime) ResizeVM(ctx context.Context, id string, target model.VmResour
 	if vm.PendingResources == nil && vm.CPU == target.CPU && vm.Mem == target.Mem && vm.Options.RequestedDisk == target.Disk && vm.Disk == disk {
 		return vm, nil
 	}
-	// Re-entry after an interruption must not depend on the storage layer
-	// tolerating a same-size resize: grow only when the measured size lags.
-	grow := uint64(target.Disk) > current
+	// A Firecracker resize grows the backing disk before the ext4 filesystem.
+	// Pending retries must finish the filesystem even when the disk is at target.
+	// QEMU has no separate filesystem step and can skip same-size disk growth.
+	grow := uint64(target.Disk) > current || (vm.Engine == model.Firecracker && vm.PendingResources != nil)
 	vm.PendingResources = &target
 	vm.Error = stringPointer("resource update unfinished; retry the recorded target")
 	if err := saveVM(ctx, r.db.conn, vm); err != nil {

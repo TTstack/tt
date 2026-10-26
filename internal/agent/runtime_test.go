@@ -53,6 +53,7 @@ func (*fakeEngine) Name() string                                              { 
 type fakeStore struct {
 	storage.ImageStore
 	size                     uint64
+	filesystemSize           uint64
 	clones, removes, resizes int
 	resizeErr, errorSize     error
 	beforeClone              func()
@@ -85,7 +86,11 @@ func (s *fakeStore) ResizeDisk(_ context.Context, _ string, size uint32) error {
 	return s.resizeErr
 }
 func (s *fakeStore) ResizeFirecracker(ctx context.Context, path string, size uint32) error {
-	return s.ResizeDisk(ctx, path, size)
+	if err := s.ResizeDisk(ctx, path, size); err != nil {
+		return err
+	}
+	s.filesystemSize = s.size
+	return nil
 }
 
 type fakeNetwork struct {
@@ -505,5 +510,37 @@ func TestResizeRetrySkipsDiskWorkAlreadyAtTarget(t *testing.T) {
 	vm, err = loadVM(ctx, r.db.conn, created.ID)
 	if err != nil || vm.PendingResources != nil || vm.CPU != 1 || vm.Mem != 128 {
 		t.Fatal(vm, err)
+	}
+}
+
+func TestFirecrackerResizeRetryFinishesFilesystemAtTargetDiskSize(t *testing.T) {
+	r, _, s := runtimeFixture(t)
+	ctx := context.Background()
+	vm := &model.Vm{Backup: model.NewBackupState(), ID: "partial-ext4", EnvID: "env", HostID: "host", Image: "alpine", Engine: model.Firecracker, CPU: 1, Mem: 128, Disk: 128, State: model.VmStopped, Options: model.VmOptions{RequestedDisk: 128}}
+	if err := saveVM(ctx, r.db.conn, vm); err != nil {
+		t.Fatal(err)
+	}
+	s.filesystemSize = s.size
+	s.resizeErr = fmt.Errorf("resize2fs failed after backing disk grew")
+	target := model.VmResources{CPU: 1, Mem: 128, Disk: 256}
+	// Both the original failure and a failed retry must retain the intent;
+	// backing-disk capacity alone cannot prove filesystem completion.
+	for range 2 {
+		if _, err := r.ResizeVM(ctx, vm.ID, target); err == nil {
+			t.Fatal("incomplete filesystem resize reported success")
+		}
+		stored, err := loadVM(ctx, r.db.conn, vm.ID)
+		if err != nil || stored.PendingResources == nil || *stored.PendingResources != target || stored.Disk != 128 || s.size != 256*1024*1024 || s.filesystemSize != 128*1024*1024 {
+			t.Fatal(stored, s, err)
+		}
+	}
+	s.resizeErr = nil
+	updated, err := r.ResizeVM(ctx, vm.ID, target)
+	if err != nil || updated.PendingResources != nil || updated.Error != nil || updated.Disk != 256 || s.filesystemSize != 256*1024*1024 {
+		t.Fatal(updated, s, err)
+	}
+	resizes := s.resizes
+	if _, err := r.ResizeVM(ctx, vm.ID, target); err != nil || s.resizes != resizes {
+		t.Fatal("completed resize was not idempotent", err)
 	}
 }
