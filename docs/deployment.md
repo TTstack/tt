@@ -93,6 +93,44 @@ host capacity to scheduling; set explicit budgets on shared hosts. Fixed engine
 paths and networking require full namespace/root isolation for parallel native
 test fleets, as described in [roadmap.md](roadmap.md).
 
+## OpenRC hosts (Gentoo and others)
+
+The generated OpenRC script matches the Rust reference byte-for-byte, and the
+reference behavior on recent supervise-daemon versions is defective: the
+service reports `status: started` while nothing listens. Two operator fixes are
+required on the target until the upstream script is corrected:
+
+1. `command_user="ttstack:ttstack"` is split into an argument list that this
+   supervise-daemon rejects; edit the installed `/etc/init.d/tt-ctl` to the
+   user-only form `command_user="ttstack"` (primary group is already correct).
+2. `output_log`/`error_log` paths under `/var/log` cannot be created after the
+   supervisor drops privileges; pre-create them owned by the service user, e.g.
+   `install -o ttstack -g ttstack -m 640 /dev/null /var/log/tt-ctl.log`.
+
+Always verify readiness by the listening socket and `tt status`, never by
+service status alone. Both defects reproduce identically with the Rust release;
+they were observed during live deployment on Gentoo and are recorded in
+[validation/distributed-2026-10-26.md](validation/distributed-2026-10-26.md).
+
+## Docker co-hosted with an agent
+
+`dockerd` sets the nftables `ip filter FORWARD` chain to policy `drop` and only
+allows its own bridges, which drops forwarded traffic to the `tt0` QEMU/
+Firecracker bridge. Published VM ports then connect only from the agent
+namespace itself. An operator running both on one host must opt in explicitly,
+for example before guests are created:
+
+```sh
+iptables -I DOCKER-USER 1 -o tt0 -j ACCEPT
+iptables -I DOCKER-USER 2 -i tt0 -j ACCEPT
+```
+
+These runtime rules are outside the managed tables, survive neither reboot nor
+`iptables -F`, and are the operator's to keep or remove. They only short-circuit
+the Docker table; the managed `nftables` NAT, outgoing-denial and isolation
+semantics are unchanged. Container workloads are unaffected either way, since
+Docker publishes them through its own chains.
+
 ## Experimental FreeBSD
 
 The deployment commands intentionally reject FreeBSD. Cross-build with
