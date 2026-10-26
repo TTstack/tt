@@ -141,7 +141,7 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "[agent] reconciliation failed: %v\n", err)
 		}
 	})
-	httpServer := &http.Server{Handler: server.Handler(key)}
+	httpServer := &http.Server{Handler: server.Handler(key), ReadHeaderTimeout: 10 * time.Second} // see compatibility §7
 	serving := make(chan error, 1)
 	go func() { serving <- httpServer.Serve(listener) }()
 	select {
