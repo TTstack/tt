@@ -76,6 +76,8 @@ func (s ZvolStore) device(ctx context.Context, dataset string) (string, error) {
 	}
 	path := "/dev/zvol/" + dataset
 	started := time.Now()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		info, err := os.Stat(path)
 		if err == nil && info.Mode()&os.ModeDevice != 0 {
@@ -90,7 +92,7 @@ func (s ZvolStore) device(ctx context.Context, dataset string) (string, error) {
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
-		case <-time.After(50 * time.Millisecond):
+		case <-ticker.C:
 		}
 	}
 }
