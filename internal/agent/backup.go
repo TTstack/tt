@@ -81,11 +81,21 @@ func (r *Runtime) BackupClaim(ctx context.Context, id string, request *model.Bac
 		return BackupSetup{}, fmt.Errorf("conflict: backup cleanup is backing off after an error")
 	}
 	if len(r.backupRunning) >= 2 || r.backupRunning[id] {
-		return BackupSetup{}, fmt.Errorf("conflict: backup worker is running; inspect or retry the same operation")
+		return BackupSetup{}, backupBusyError{}
 	}
 	r.backupRunning[id] = true
 	return r.backupSetup(view.Vm), nil
 }
+
+// backupBusyError rejects a claim while another backup worker holds the slot.
+// Its message is the stable "conflict:" wire text; the type lets the worker's
+// retry loop recognize the condition without matching the message.
+type backupBusyError struct{}
+
+func (backupBusyError) Error() string {
+	return "conflict: backup worker is running; inspect or retry the same operation"
+}
+
 func (r *Runtime) BackupRelease(id string) { delete(r.backupRunning, id) }
 func (r *Runtime) BackupSettled(ctx context.Context, id string, request model.BackupRequest) *uint64 {
 	if r.backupRunning[id] {

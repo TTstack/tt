@@ -14,14 +14,24 @@ var isolationTemplate string
 //go:embed nat.nft
 var natTemplate string
 
-func IsolationRules(id, address string) (string, error) {
+// FleetIPv4 requires an address inside the managed bridge subnet and rejects
+// the bridge's own address. Engines and network setup share it so every
+// consumer of Vm.IP enforces the same boundary.
+func FleetIPv4(address string) (netip.Addr, error) {
 	ip, err := netip.ParseAddr(address)
 	if err != nil || !ip.Is4() {
-		return "", fmt.Errorf("invalid guest IPv4 address")
+		return netip.Addr{}, fmt.Errorf("invalid guest IPv4 address")
 	}
 	b := ip.As4()
 	if b[0] != 10 || b[1] != 10 || ip.String() == BridgeAddr {
-		return "", fmt.Errorf("invalid isolated guest address")
+		return netip.Addr{}, fmt.Errorf("guest IPv4 address must be inside " + BridgeCIDR + ", excluding " + BridgeAddr)
+	}
+	return ip, nil
+}
+func IsolationRules(id, address string) (string, error) {
+	ip, err := FleetIPv4(address)
+	if err != nil {
+		return "", err
 	}
 	mac, _ := MAC(address)
 	return strings.NewReplacer("{t}", isolationTable(id), "{tap}", TapName(id), "{mac}", mac, "{ip}", ip.String(), "{BRIDGE_ADDR}", BridgeAddr, "{BRIDGE_NAME}", BridgeName).Replace(isolationTemplate), nil

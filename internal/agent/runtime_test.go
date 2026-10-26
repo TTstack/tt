@@ -472,3 +472,38 @@ func TestFirecrackerReceivesRootDirectoryWithoutLocalInfrastructure(t *testing.T
 		t.Fatal(e.lastPath)
 	}
 }
+
+func TestResizeRetrySkipsDiskWorkAlreadyAtTarget(t *testing.T) {
+	r, _, s := runtimeFixture(t)
+	ctx := context.Background()
+	created, err := r.CreateVM(ctx, requestFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.StopVM(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	target := model.VmResources{CPU: 1, Mem: 128, Disk: 256}
+	s.resizeErr = fmt.Errorf("growth outcome unknown")
+	if _, err := r.ResizeVM(ctx, created.ID, target); err == nil {
+		t.Fatal("resize failure hidden")
+	}
+	// The fake grows before reporting failure, exactly like a real resize
+	// whose outcome was lost; the disk already carries the target size.
+	vm, err := loadVM(ctx, r.db.conn, created.ID)
+	if err != nil || vm.PendingResources == nil {
+		t.Fatal(vm, err)
+	}
+	s.resizeErr = nil
+	resizes := s.resizes
+	if _, err := r.ResizeVM(ctx, created.ID, target); err != nil {
+		t.Fatal(err)
+	}
+	if s.resizes != resizes {
+		t.Fatal("same-size resize re-executed disk growth")
+	}
+	vm, err = loadVM(ctx, r.db.conn, created.ID)
+	if err != nil || vm.PendingResources != nil || vm.CPU != 1 || vm.Mem != 128 {
+		t.Fatal(vm, err)
+	}
+}

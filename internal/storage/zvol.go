@@ -113,7 +113,24 @@ func ensureCloneSnapshot(ctx context.Context, dataset string, recursive bool) er
 	}
 	return nil
 }
-func (s ZvolStore) CloneImage(ctx context.Context, base, target string) error {
+func (s ZvolStore) CloneImage(ctx context.Context, base, target string) (err error) {
+	// Datasets created by this invocation, newest first on rollback. A partial
+	// clone must be retryable, so any failure destroys what we made; ownership
+	// is certain because the clone commands create them exclusively.
+	created := []string{}
+	rollback := func() {
+		for i := len(created) - 1; i >= 0; i-- {
+			if _, destroyErr := zfsCommand(ctx, "destroy", "-R", created[i]); destroyErr != nil {
+				err = fmt.Errorf("%w; failed to roll back %s: %v", err, created[i], destroyErr)
+			}
+		}
+	}
+	failed := true
+	defer func() {
+		if failed {
+			rollback()
+		}
+	}()
 	kind, err := zfsProperty(ctx, base, "type")
 	if err != nil {
 		return err
@@ -141,9 +158,11 @@ func (s ZvolStore) CloneImage(ctx context.Context, base, target string) error {
 		if _, err := zfsCommand(ctx, "clone", "-o", "mountpoint="+dir, "-o", "readonly=off", "-o", "canmount=on", snap, target); err != nil {
 			return err
 		}
+		created = append(created, target)
 		if _, err := zfsCommand(ctx, "clone", "-o", "readonly=off", "-o", "volmode=dev", base+"/rootfs@"+CloneSnapshot, target+"/rootfs"); err != nil {
 			return err
 		}
+		created = append(created, target+"/rootfs")
 		disk, err := s.device(ctx, target+"/rootfs")
 		if err != nil {
 			return err
@@ -155,10 +174,12 @@ func (s ZvolStore) CloneImage(ctx context.Context, base, target string) error {
 		if _, err := zfsCommand(ctx, "clone", "-o", "readonly=off", "-o", "volmode=dev", snap, target); err != nil {
 			return err
 		}
+		created = append(created, target)
 		if _, err := s.device(ctx, target); err != nil {
 			return err
 		}
 	}
+	failed = false
 	return nil
 }
 func (ZvolStore) RemoveImage(ctx context.Context, path string) error {

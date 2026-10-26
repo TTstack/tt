@@ -236,26 +236,32 @@ func queryAll[T any](ctx context.Context, q queryer, query string, args ...any) 
 	}
 	return result, rows.Err()
 }
-func recoveryRows[T any](ctx context.Context, d *DB, table string) ([]T, error) {
-	rows, err := d.q.QueryContext(ctx, "SELECT id,data FROM "+table)
+
+// recoveryRows returns the decodable rows plus the ids of the unreadable ones.
+// Callers must account for the corrupt ids explicitly; silently dropping them
+// would leave those records invisible to every later pass.
+func recoveryRows[T any](ctx context.Context, d *DB, table string) ([]T, []string, error) {
+	rows, err := d.q.QueryContext(ctx, "SELECT id,data FROM "+table+" ORDER BY id")
 	if err != nil {
-		return nil, fmt.Errorf("prepare recovery: %w", err)
+		return nil, nil, fmt.Errorf("prepare recovery: %w", err)
 	}
 	defer rows.Close()
 	result := []T{}
+	corrupt := []string{}
 	for rows.Next() {
 		var id, data textColumn
 		if err := rows.Scan(&id, &data); err != nil {
-			return nil, fmt.Errorf("recovery row: %w", err)
+			return nil, nil, fmt.Errorf("recovery row: %w", err)
 		}
 		var value T
 		if err := json.Unmarshal([]byte(data), &value); err != nil {
-			fmt.Fprintf(d.stderr, "[ctl] unreadable %s record %s; retained for operator recovery\n", table, id)
+			fmt.Fprintf(d.stderr, "[ctl] unreadable %s record %s; replaced by an offline marker\n", table, id)
+			corrupt = append(corrupt, string(id))
 		} else {
 			result = append(result, value)
 		}
 	}
-	return result, rows.Err()
+	return result, corrupt, rows.Err()
 }
 func (d *DB) PutHost(ctx context.Context, host *model.Host) error {
 	return putRecord(ctx, d.q, "INSERT OR REPLACE INTO hosts (id,data) VALUES (?1,?2)", "host", host, host.ID)
@@ -263,8 +269,12 @@ func (d *DB) PutHost(ctx context.Context, host *model.Host) error {
 func (d *DB) GetHost(ctx context.Context, id string) (*model.Host, error) {
 	return queryOne[model.Host](ctx, d.q, "SELECT data FROM hosts WHERE id=?1", id)
 }
+
+// All fleet listings order by id: INSERT OR REPLACE rewrites move rows to the
+// end of the table, and deterministic input order keeps scheduling tie-breaks
+// and rebuilt wire arrays stable.
 func (d *DB) ListHosts(ctx context.Context) ([]model.Host, error) {
-	return queryAll[model.Host](ctx, d.q, "SELECT data FROM hosts")
+	return queryAll[model.Host](ctx, d.q, "SELECT data FROM hosts ORDER BY id")
 }
 func (d *DB) RemoveHost(ctx context.Context, id string) error {
 	_, err := d.q.ExecContext(ctx, "DELETE FROM hosts WHERE id=?1", id)
@@ -303,15 +313,15 @@ func (d *DB) RemoveVM(ctx context.Context, id string) error {
 	return nil
 }
 func (d *DB) VMsByEnv(ctx context.Context, id string) ([]model.Vm, error) {
-	return queryAll[model.Vm](ctx, d.q, "SELECT data FROM vms WHERE env_id=?1", id)
+	return queryAll[model.Vm](ctx, d.q, "SELECT data FROM vms WHERE env_id=?1 ORDER BY id", id)
 }
 func (d *DB) VMsByHost(ctx context.Context, id string) ([]model.Vm, error) {
-	return queryAll[model.Vm](ctx, d.q, "SELECT data FROM vms WHERE host_id=?1", id)
+	return queryAll[model.Vm](ctx, d.q, "SELECT data FROM vms WHERE host_id=?1 ORDER BY id", id)
 }
-func (d *DB) RecoveryHosts(ctx context.Context) ([]model.Host, error) {
+func (d *DB) RecoveryHosts(ctx context.Context) ([]model.Host, []string, error) {
 	return recoveryRows[model.Host](ctx, d, "hosts")
 }
-func (d *DB) RecoveryEnvs(ctx context.Context) ([]model.Env, error) {
+func (d *DB) RecoveryEnvs(ctx context.Context) ([]model.Env, []string, error) {
 	return recoveryRows[model.Env](ctx, d, "envs")
 }
 func (d *DB) count(ctx context.Context, table string) (uint64, error) {
@@ -325,7 +335,11 @@ func (d *DB) count(ctx context.Context, table string) (uint64, error) {
 func (d *DB) HostCount(ctx context.Context) (uint64, error) { return d.count(ctx, "hosts") }
 func (d *DB) EnvCount(ctx context.Context) (uint64, error)  { return d.count(ctx, "envs") }
 func (d *DB) VMCount(ctx context.Context) (uint64, error)   { return d.count(ctx, "vms") }
-func (d *DB) PutEnvironment(ctx context.Context, env *model.Env, vms []model.Vm) error {
+
+// PutEnvironment commits the whole plan — environment, VMs and the host
+// reservations — atomically, so a mid-write failure cannot park an
+// environment in Creating with half-deducted hosts.
+func (d *DB) PutEnvironment(ctx context.Context, env *model.Env, vms []model.Vm, hosts []model.Host) error {
 	return d.transaction(ctx, "environment plan", func(tx *DB) error {
 		if err := tx.PutEnv(ctx, env); err != nil {
 			return err
@@ -335,7 +349,29 @@ func (d *DB) PutEnvironment(ctx context.Context, env *model.Env, vms []model.Vm)
 				return err
 			}
 		}
+		for i := range hosts {
+			if err := tx.PutHost(ctx, &hosts[i]); err != nil {
+				return err
+			}
+		}
 		return nil
+	})
+}
+
+// RemoveVMRelease deletes the VM row and returns its reservations to the host
+// in the same transaction. A missing or unreadable host row does not block
+// the deletion: accounting repair is the refresh loop's job.
+func (d *DB) RemoveVMRelease(ctx context.Context, vm model.Vm) error {
+	return d.transaction(ctx, "VM removal", func(tx *DB) error {
+		if err := tx.RemoveVM(ctx, vm.ID); err != nil {
+			return err
+		}
+		host, err := tx.GetHost(ctx, vm.HostID)
+		if err != nil || host == nil {
+			return nil
+		}
+		host.Resource.Release(vm)
+		return tx.PutHost(ctx, host)
 	})
 }
 func (d *DB) PutBackupObservation(ctx context.Context, vm *model.Vm, previousDisk uint32) error {

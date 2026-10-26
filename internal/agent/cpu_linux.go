@@ -103,7 +103,9 @@ func cgroupQuota(read func(string) ([]byte, error), exists func(string) bool) ui
 					line := strings.SplitN(string(raw), "\n", 2)[0]
 					fields := strings.Split(line, " ")
 					if len(fields) < 2 {
-						return quota
+						// A malformed cpu.max must not hide tighter ancestor limits.
+						path = filepath.Dir(path)
+						continue
 					}
 					limit, okLimit = parse(fields[0])
 					period, okPeriod = parse(fields[1])

@@ -3,6 +3,7 @@ package netcfg
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,7 +91,10 @@ func TestPFOnlyReplacesOwnedChildAnchors(t *testing.T) {
 			if !strings.HasPrefix(cmd.Args[2], "ttstack/") {
 				t.Fatal("root anchor modified")
 			}
-			data, err := os.ReadFile(cmd.Args[4])
+			if cmd.Args[4] != "-" {
+				t.Fatal("named PF rule file leaked back in")
+			}
+			data, err := io.ReadAll(cmd.Stdin)
 			loaded = append(loaded, cmd.Args[2]+"\n"+string(data))
 			return runcmd.Result{}, err
 		}
@@ -118,5 +122,82 @@ func TestPFOnlyReplacesOwnedChildAnchors(t *testing.T) {
 	}
 	if strings.Join(flushed, "\n") != "pfctl -a ttstack/forward-10-10-0-2-20000 -F nat\npfctl -a ttstack/forward-10-10-0-2-20000 -F rules" {
 		t.Fatal(flushed)
+	}
+}
+
+func TestSetupBridgeRejectsForeignInterfaceCarryingOurName(t *testing.T) {
+	n := New()
+	n.runDir = t.TempDir()
+	n.execute = func(ctx context.Context, cmd *exec.Cmd, d time.Duration) (runcmd.Result, error) {
+		switch strings.Join(cmd.Args, " ") {
+		case "ifconfig tt0":
+			return runcmd.Result{Stdout: []byte("tt0: flags=8843<UP> metric 0 mtu 1500\n\tgroups: mesh wlan\n")}, nil
+		default:
+			return runcmd.Result{}, fmt.Errorf("unexpected configuration command: %v", cmd.Args)
+		}
+	}
+	if err := n.SetupBridge(context.Background()); err == nil || !strings.Contains(err.Error(), "tt0 exists but is not a bridge") {
+		t.Fatal(err)
+	}
+}
+func TestSetupBridgeAcceptsExistingManagedBridge(t *testing.T) {
+	n := New()
+	n.runDir = t.TempDir()
+	configured := []string{}
+	n.execute = func(ctx context.Context, cmd *exec.Cmd, d time.Duration) (runcmd.Result, error) {
+		command := strings.Join(cmd.Args, " ")
+		switch command {
+		case "ifconfig tt0":
+			return runcmd.Result{Stdout: []byte("tt0: flags=8843<UP> metric 0 mtu 1500\n\tgroups: bridge\n")}, nil
+		default:
+			configured = append(configured, command)
+			return runcmd.Result{}, nil
+		}
+	}
+	if err := n.SetupBridge(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(configured) != 3 || configured[0] != "ifconfig tt0 inet 10.10.0.1/16" || configured[2] != "sysctl net.inet.ip.forwarding=1" {
+		t.Fatal(configured)
+	}
+}
+func TestDestroyNamedTapRequiresOurOwnershipProof(t *testing.T) {
+	tap := TapName("vm-named")
+	n := New()
+	n.runDir = t.TempDir()
+	foreign := true
+	destroyed := false
+	if err := os.WriteFile(n.tapRecord("vm-named"), []byte("tap7"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	n.execute = func(ctx context.Context, cmd *exec.Cmd, d time.Duration) (runcmd.Result, error) {
+		switch strings.Join(cmd.Args, " ") {
+		case "ifconfig -l":
+			return runcmd.Result{Stdout: []byte("lo0 " + tap)}, nil
+		case "ifconfig " + tap:
+			description := "description: something-else"
+			if !foreign {
+				description = "description: ttstack:vm-named"
+			}
+			return runcmd.Result{Stdout: []byte(description + "\n")}, nil
+		case "ifconfig " + tap + " destroy":
+			destroyed = true
+			return runcmd.Result{}, nil
+		default:
+			return runcmd.Result{}, fmt.Errorf("unexpected command: %v", cmd.Args)
+		}
+	}
+	if err := n.DestroyTap(context.Background(), "vm-named"); err == nil || !strings.Contains(err.Error(), "ownership changed") {
+		t.Fatal(err)
+	}
+	if destroyed {
+		t.Fatal("foreign device destroyed")
+	}
+	foreign = false
+	if err := n.DestroyTap(context.Background(), "vm-named"); err != nil {
+		t.Fatal(err)
+	}
+	if !destroyed {
+		t.Fatal("owned device retained")
 	}
 }

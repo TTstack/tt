@@ -57,13 +57,12 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	rt, err := newRuntime(ctx, host, backend, cfg.ImageDir, cfg.RuntimeDir, path, resource)
+	rt, err := newRuntime(ctx, host, backend, cfg.ImageDir, cfg.RuntimeDir, path, resource, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "Failed to initialize runtime: %v\n", err)
 		return 1
 	}
 	defer rt.Close()
-	rt.db.stderr = stderr
 	var requestedRuntime *engine.ContainerRuntime
 	if cfg.present["container-runtime"] {
 		selected, err := engine.ParseContainerRuntime(cfg.ContainerRuntime)

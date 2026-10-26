@@ -88,7 +88,11 @@ func (a *application) run(args []string) int {
 			}
 			err = builder.createAll(a.ctx, p.value("image-dir"), engine)
 		} else {
-			err = builder.create(a.ctx, p.argument, p.value("image-dir"))
+			if p.has("engine") {
+				err = fmt.Errorf("--engine only applies to 'image create all'")
+			} else {
+				err = builder.create(a.ctx, p.argument, p.value("image-dir"))
+			}
 		}
 	} else {
 		var saved *cliConfig

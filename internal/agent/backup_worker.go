@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -52,7 +53,8 @@ func (s *Server) runBackup(id string, request model.BackupRequest, wait bool) (a
 		if err == nil {
 			break
 		}
-		if wait && strings.Contains(err.Error(), "backup worker is running") && time.Since(started) < 300*time.Second {
+		var busy backupBusyError
+		if wait && errors.As(err, &busy) && time.Since(started) < 300*time.Second {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}

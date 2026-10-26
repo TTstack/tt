@@ -211,10 +211,13 @@ func (n *Network) RemovePortForwards(ctx context.Context, ip string) error {
 		}
 		parts := strings.Split(line, "handle ")
 		handle, err := strconv.ParseUint(strings.TrimPrefix(strings.TrimSpace(parts[len(parts)-1]), "+"), 10, 64)
-		if err == nil {
-			if err := n.nft(ctx, fmt.Sprintf("delete rule ip %s prerouting handle %d", NFTTable, handle)); err != nil {
-				return err
-			}
+		if err != nil {
+			// Fail closed: reporting success here would leave a live DNAT rule
+			// pointing at an address a future guest may receive.
+			return fmt.Errorf("cannot parse NAT handle for %s; forward retained", ip)
+		}
+		if err := n.nft(ctx, fmt.Sprintf("delete rule ip %s prerouting handle %d", NFTTable, handle)); err != nil {
+			return err
 		}
 	}
 	return nil

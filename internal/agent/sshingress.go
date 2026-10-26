@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -87,16 +88,22 @@ func (s SshIngress) write(ctx context.Context, script string) error {
 	if script == "" {
 		return nil
 	}
-	file, err := os.CreateTemp("", "tt-ssh-ingress-*")
+	// The ruleset travels over stdin from an open, unlinked scratch file; an
+	// interruption leaves neither a named file nor a partial command line.
+	file, err := runcmd.AnonymousFile("", "tt-ssh-ingress-")
 	if err != nil {
 		return fmt.Errorf("SSH ingress transaction: %w", err)
 	}
 	defer file.Close()
-	defer os.Remove(file.Name())
 	if _, err := file.WriteString(script); err != nil {
 		return fmt.Errorf("write SSH ingress transaction: %w", err)
 	}
-	out, err := runcmd.Output(ctx, s.command("-f", file.Name()), runcmd.DefaultTimeout)
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewind SSH ingress transaction: %w", err)
+	}
+	cmd := s.command("-f", "-")
+	cmd.Stdin = file
+	out, err := runcmd.Output(ctx, cmd, runcmd.DefaultTimeout)
 	if err != nil {
 		return fmt.Errorf("apply SSH ingress: %w", err)
 	}

@@ -226,3 +226,34 @@ func TestSlowImageInspectionDoesNotBlockSnapshotsAndPublishesWhenReady(t *testin
 		t.Fatal(response.Body.String())
 	}
 }
+
+func TestCorruptInventoryPinsEveryReservationDimensionInInfo(t *testing.T) {
+	s, _, _ := serverFixture(t)
+	ctx := context.Background()
+	if _, err := s.runtime.db.conn.ExecContext(ctx, "INSERT INTO vms VALUES ('corrupt','{broken json')"); err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	s.Handler(nil).ServeHTTP(response, httptest.NewRequest("GET", "/api/info", nil))
+	if response.Code != 200 {
+		t.Fatal(response.Code)
+	}
+	var result api.Resp[api.AgentInfo]
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Data == nil {
+		t.Fatal(response.Body.String())
+	}
+	r := result.Data.Resource
+	if r.VmCount != model.MaxVMs || r.CPUUsed != r.CPUTotal || r.MemUsed != r.MemTotal || r.DiskUsed != r.DiskTotal {
+		t.Fatalf("corrupt inventory must pin every dimension, got %+v", r)
+	}
+	found := false
+	for _, warning := range result.Data.Warnings {
+		found = found || strings.Contains(warning, "unreadable VM records")
+	}
+	if !found {
+		t.Fatal(result.Data.Warnings)
+	}
+}

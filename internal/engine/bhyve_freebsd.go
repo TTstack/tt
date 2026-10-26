@@ -169,6 +169,9 @@ func (b *Bhyve) Create(ctx context.Context, vm *model.Vm, image, format string, 
 		return fmt.Errorf("spawn bhyve: %w", err)
 	}
 	if err := os.WriteFile(b.artifact(vm, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0666); err != nil {
+		// Without the recorded identity this VM is unsupervised and its retry
+		// would deadlock against itself; tear it down like Firecracker does.
+		child.kill()
 		return fmt.Errorf("record bhyve PID: %w", err)
 	}
 	for i := 0; i < 10; i++ {

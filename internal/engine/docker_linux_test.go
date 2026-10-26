@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/TTstack/tt/internal/model"
@@ -110,5 +111,70 @@ esac
 	want := []string{"podman", "run", "-d", "--name", "tt-guest", "--cpus", "2", "--memory", "256m", "--memory-swap", "256m", "-p", "20022:22", "-p", "20080:80", "alpine"}
 	if got := d.command(vm).Args; !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
+	}
+}
+
+func TestCreateAdoptsContainerCreatedBeforeALostResponse(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TT_ENGINE_TEST_DIR", dir)
+	t.Setenv("PATH", dir)
+	fakeTool(t, dir, "docker", `for arg; do name="$arg"; done
+case "$1:$2" in
+ run:*) echo 'response lost after creation' >&2; : > "$TT_ENGINE_TEST_DIR/created"; exit 1 ;;
+ inspect:-f)
+  if [ -e "$TT_ENGINE_TEST_DIR/created" ]; then
+   case "$3" in *Config.Image*) echo nginx ;; *) echo running ;; esac
+   exit 0
+  fi
+  echo 'No such container' >&2; exit 1 ;;
+ *) echo 'unexpected command' >&2; exit 2 ;;
+esac
+`)
+	d := &Docker{runtime: DockerRuntime}
+	vm := testVM()
+	vm.Image = "nginx"
+	if err := d.Create(context.Background(), vm, "nginx", "", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+func TestCreateRejectsLeftoverContainerFromAnotherImage(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TT_ENGINE_TEST_DIR", dir)
+	t.Setenv("PATH", dir)
+	fakeTool(t, dir, "docker", `for arg; do name="$arg"; done
+case "$1:$2" in
+ run:*) echo 'name conflict' >&2; exit 1 ;;
+ inspect:-f)
+  case "$3" in *Config.Image*) echo redis; exit 0 ;; *) echo running; exit 0 ;; esac ;;
+ *) echo 'unexpected command' >&2; exit 2 ;;
+esac
+`)
+	d := &Docker{runtime: DockerRuntime}
+	vm := testVM()
+	vm.Image = "nginx"
+	err := d.Create(context.Background(), vm, "nginx", "", nil)
+	if err == nil || !strings.Contains(err.Error(), "run failed") {
+		t.Fatal(err)
+	}
+}
+func TestStopUnpausesBeforeStoppingPausedContainers(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TT_ENGINE_TEST_DIR", dir)
+	t.Setenv("PATH", dir)
+	fakeTool(t, dir, "docker", `printf '%s\n' "$1" >> "$TT_ENGINE_TEST_DIR/calls"
+case "$1" in
+ inspect) echo paused ;;
+ unpause) exit 0 ;;
+ stop) exit 0 ;;
+ *) exit 2 ;;
+esac
+`)
+	d := &Docker{runtime: DockerRuntime}
+	if err := d.Stop(context.Background(), testVM()); err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
+	if string(calls) != "inspect\nunpause\nstop\n" {
+		t.Fatalf("%s", calls)
 	}
 }

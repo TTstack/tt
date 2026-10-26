@@ -57,9 +57,17 @@ func (FileStore) CloneImage(ctx context.Context, base, target string) error {
 	}
 	out, err := runcmd.Run(ctx, "cp", args...)
 	if err != nil {
+		// The placeholder above is known to be ours; a partial copy must not
+		// wedge every retry behind EEXIST.
+		if removeErr := os.RemoveAll(target); removeErr != nil {
+			return fmt.Errorf("cp image: %w (cleanup of %s failed: %v)", err, target, removeErr)
+		}
 		return fmt.Errorf("cp image: %w", err)
 	}
 	if !out.Success() {
+		if removeErr := os.RemoveAll(target); removeErr != nil {
+			return fmt.Errorf("image copy failed: %s (cleanup of %s failed: %v)", out.Stderr, target, removeErr)
+		}
 		return fmt.Errorf("image copy failed: %s", out.Stderr)
 	}
 	return nil

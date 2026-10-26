@@ -199,7 +199,10 @@ func (s *Server) restoreHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) ExpireOnce(ctx context.Context) {
 	now := s.now()
-	envs, err := withDB(s, func(db *DB) ([]model.Env, error) { return db.RecoveryEnvs(ctx) })
+	envs, err := withDB(s, func(db *DB) ([]model.Env, error) {
+		envs, _, err := db.RecoveryEnvs(ctx)
+		return envs, err
+	})
 	if err != nil {
 		s.log("[ctl] expiry DB error: %v", err)
 		return

@@ -295,3 +295,59 @@ func TestMalformedDeploymentHasOneParseContext(t *testing.T) {
 		}
 	}
 }
+
+func TestRemoteKeyProbeRefusesDivergentRoleKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "deploy.toml")
+	writeFixture(t, path, "[controller]\nhost='10.0.0.1'\n")
+	var probeScript string
+	var stdout, stderr bytes.Buffer
+	app := newApplication(&stdout, &stderr)
+	d := newDeployer(app)
+	d.execute = func(ctx context.Context, command *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
+		if command.Stdin != nil {
+			data, _ := io.ReadAll(command.Stdin)
+			probeScript = string(data)
+		}
+		return runcmd.Result{ExitCode: 1, Stderr: []byte("existing agent/controller keys differ; put the intended shared key in deploy.toml general.api_key")}, nil
+	}
+	err := d.distributed(context.Background(), path)
+	if err == nil || !strings.Contains(err.Error(), "existing agent/controller keys differ") {
+		t.Fatal(err)
+	}
+	if !strings.Contains(probeScript, "cmp -s") || !strings.Contains(probeScript, "tt-ctl.env") || !strings.Contains(probeScript, "tt-agent.env") {
+		t.Fatal(probeScript)
+	}
+}
+func TestRemoteDeployKeepsSuccessWhenStagingCleanupFails(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"tt-ctl", "tt"} {
+		writeFixture(t, filepath.Join(dir, name), "binary-"+name)
+	}
+	path := filepath.Join(dir, "deploy.toml")
+	writeFixture(t, path, "[general]\napi_key='AAAAAAAAAAAAAAAAAAAAAA'\nrelease_dir='"+dir+"'\n[controller]\nhost='10.0.0.1'\n")
+	var stdout, stderr bytes.Buffer
+	app := newApplication(&stdout, &stderr)
+	d := newDeployer(app)
+	d.execute = func(ctx context.Context, command *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
+		if command.Args[0] == "scp" {
+			return runcmd.Result{}, nil
+		}
+		data, _ := io.ReadAll(command.Stdin)
+		script := string(data)
+		switch {
+		case strings.Contains(script, "mktemp"):
+			return runcmd.Result{Stdout: []byte("/tmp/ttstack-deploy.test\n")}, nil
+		case strings.HasPrefix(script, "rm -rf -- "):
+			return runcmd.Result{ExitCode: 1, Stderr: []byte("simulated ssh hiccup")}, nil
+		default:
+			return runcmd.Result{}, nil
+		}
+	}
+	if err := d.distributed(context.Background(), path); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr.String(), "staging cleanup") {
+		t.Fatal(stderr.String())
+	}
+}

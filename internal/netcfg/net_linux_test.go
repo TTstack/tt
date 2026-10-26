@@ -110,3 +110,32 @@ func TestNftRulesAreUnlinkedBeforeTheToolStarts(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestUnparseableNATHandleFailsClosedInsteadOfLeakingTheRule(t *testing.T) {
+	n := New()
+	deleted := 0
+	n.execute = func(ctx context.Context, cmd *exec.Cmd, timeout time.Duration) (runcmd.Result, error) {
+		command := strings.Join(cmd.Args, " ")
+		var data []byte
+		if cmd.Stdin != nil {
+			data, _ = io.ReadAll(cmd.Stdin)
+		}
+		switch {
+		case command == "nft -j list ruleset":
+			return runcmd.Result{Stdout: []byte(`{"nftables":[{"chain":{"family":"ip","table":"tt-nat","name":"prerouting"}}]}`)}, nil
+		case command == "nft -a list chain ip tt-nat prerouting":
+			return runcmd.Result{Stdout: []byte("table ip tt-nat {\n chain prerouting {\n  meta l4proto tcp ip daddr 10.0.0.5 tcp dport 20000 dnat to 10.10.0.77:22 # handle corrupt?\n}\n")}, nil
+		case len(data) > 0 && strings.Contains(string(data), "delete rule"):
+			deleted++
+			return runcmd.Result{}, nil
+		}
+		return runcmd.Result{}, nil
+	}
+	err := n.RemovePortForwards(context.Background(), "10.10.0.77")
+	if err == nil || !strings.Contains(err.Error(), "cannot parse NAT handle") {
+		t.Fatal(err)
+	}
+	if deleted != 0 {
+		t.Fatal("a rule was deleted despite the unparseable sibling handle")
+	}
+}

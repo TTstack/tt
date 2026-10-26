@@ -83,9 +83,7 @@ func (s *Server) getInfo(w http.ResponseWriter, request *http.Request) {
 	info.Resource = ResourcesFor(info.Resource, vms)
 	info.Warnings = append(model.List[string]{}, info.Warnings...)
 	if corrupt {
-		info.Resource.CPUUsed = info.Resource.CPUTotal
-		info.Resource.MemUsed = info.Resource.MemTotal
-		info.Resource.DiskUsed = info.Resource.DiskTotal
+		pinToCapacity(&info.Resource)
 		info.Warnings = append(info.Warnings, "unreadable VM records retained; new admission disabled; inspect agent logs")
 	}
 	s.imagesMu.RLock()
