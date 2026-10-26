@@ -92,12 +92,6 @@ func (d *deployer) distributed(ctx context.Context, path string) error {
 	}
 	release, prefix, user := cfg.General.ReleaseDir, cfg.General.Prefix, cfg.General.User
 	home := "/home/" + user
-	for _, name := range []string{"tt", "tt-ctl", "tt-agent"} {
-		binary := filepath.Join(release, name)
-		if !fileExists(binary) {
-			return fmt.Errorf("%s not found (run 'cargo build --release')", binary)
-		}
-	}
 	sidecar := path + ".api-key"
 	var key string
 	if cfg.General.APIKey != nil {
@@ -127,7 +121,10 @@ func (d *deployer) distributed(ctx context.Context, path string) error {
 		} else {
 			return fmt.Errorf("deploy config has no controller or agents")
 		}
-		script := fmt.Sprintf("sudo sh -c 'if [ -f %s/etc/tt-ctl.env ]; then cat %s/etc/tt-ctl.env; elif [ -f %s/etc/tt-agent.env ]; then cat %s/etc/tt-agent.env; fi'", prefix, prefix, prefix, prefix)
+		// Reusing a key while agent and controller disagree would afterwards
+		// cement the split by writing the chosen side into every new role, so
+		// the probe refuses instead of silently preferring the controller.
+		script := fmt.Sprintf("sudo sh -c 'ctl=%s/etc/tt-ctl.env; agt=%s/etc/tt-agent.env; if [ -f \"$ctl\" ] && [ -f \"$agt\" ] && ! cmp -s \"$ctl\" \"$agt\"; then echo \"existing agent/controller keys differ; put the intended shared key in deploy.toml general.api_key\" >&2; exit 1; fi; if [ -f \"$ctl\" ]; then cat \"$ctl\"; elif [ -f \"$agt\" ]; then cat \"$agt\"; fi'", prefix, prefix)
 		previous, err := target.exec(ctx, script)
 		if err != nil {
 			return err
@@ -153,6 +150,10 @@ func (d *deployer) distributed(ctx context.Context, path string) error {
 			return err
 		}
 		for _, name := range []string{"tt-ctl", "tt"} {
+			binary := filepath.Join(release, name)
+			if !fileExists(binary) {
+				return fmt.Errorf("%s not found (run 'make release')", binary)
+			}
 			if err := target.copy(ctx, filepath.Join(release, name), tmp+"/"+name); err != nil {
 				return err
 			}
@@ -170,7 +171,9 @@ func (d *deployer) distributed(ctx context.Context, path string) error {
 			return deployErr
 		}
 		if cleanupErr != nil {
-			return cleanupErr
+			// The service is installed and running; a leftover staging
+			// directory must not downgrade the outcome to failure.
+			d.app.diagnostic("[deploy] warning: staging cleanup on %s failed: %v", controller.Host, cleanupErr)
 		}
 		fmt.Fprint(d.app.stdout, result)
 	}
@@ -185,7 +188,11 @@ func (d *deployer) distributed(ctx context.Context, path string) error {
 		if agent.ReleaseDir != nil {
 			agentRelease = *agent.ReleaseDir
 		}
-		if err := target.copy(ctx, filepath.Join(agentRelease, "tt-agent"), tmp+"/tt-agent"); err != nil {
+		binary := filepath.Join(agentRelease, "tt-agent")
+		if !fileExists(binary) {
+			return fmt.Errorf("%s not found (run 'make release')", binary)
+		}
+		if err := target.copy(ctx, binary, tmp+"/tt-agent"); err != nil {
 			return err
 		}
 		d.app.out("[deploy] uploaded tt-agent")
@@ -221,7 +228,7 @@ func (d *deployer) distributed(ctx context.Context, path string) error {
 			return deployErr
 		}
 		if cleanupErr != nil {
-			return cleanupErr
+			d.app.diagnostic("[deploy] warning: staging cleanup on %s failed: %v", agent.Host, cleanupErr)
 		}
 		fmt.Fprint(d.app.stdout, result)
 	}

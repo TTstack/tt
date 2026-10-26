@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -198,7 +199,7 @@ func seedController(t *testing.T, s *Server, m *mockAgent) {
 	env.VmIds = model.List[string]{vm.ID}
 	env.ExpiresAt = 2000
 	s.dbMu.Lock()
-	err := s.db.PutEnvironment(context.Background(), &env, []model.Vm{vm})
+	err := s.db.PutEnvironment(context.Background(), &env, []model.Vm{vm}, nil)
 	s.dbMu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -719,5 +720,47 @@ func TestCancelledExpiryRetainsDeletionIntentAndReservations(t *testing.T) {
 	s.ExpireOnce(context.Background())
 	if _, apiErr := s.environmentDetail(context.Background(), "env"); apiErr == nil || apiErr.Status != 404 {
 		t.Fatal(apiErr)
+	}
+}
+
+func TestAdmissionCountsTheManagedSSHSeedTowardTheFileLimit(t *testing.T) {
+	s, _ := controllerFixture(t)
+	host := httptest.NewServer(s.Handler())
+	defer host.Close()
+	files := model.GuestConfig{}
+	for i := 0; i < 32; i++ {
+		files[fmt.Sprintf("file-%02d", i)] = "x"
+	}
+	spec := api.VmSpec{Image: "ubuntu", Engine: model.Firecracker, CPU: u32(1), Mem: u32(128), Disk: u32(16), GuestConfig: files,
+		SSH: &model.SshOptions{User: "user"}, SSHKeys: model.List[string]{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDUMMYDUMMYDUMMYDUMMYDUMMYDUMMYDUMMYDUMMYDU tester"}}
+	request := api.CreateEnvReq{ID: "seed-limit", Owner: "tester", VMs: model.List[api.VmSpec]{spec}}
+	data, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := host.Client().Post(host.URL+"/api/envs", "application/json", strings.NewReader(string(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(response.Body)
+	response.Body.Close()
+	if response.StatusCode != 400 || !strings.Contains(string(body), "exceeds 32 files") {
+		t.Fatalf("%d: %s", response.StatusCode, body)
+	}
+	// Without the SSH seed the same 32 caller files stay within the limit.
+	spec.SSH, spec.SSHKeys = nil, nil
+	request = api.CreateEnvReq{ID: "seed-limit-free", Owner: "tester", VMs: model.List[api.VmSpec]{spec}}
+	data, err = json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err = host.Client().Post(host.URL+"/api/envs", "application/json", strings.NewReader(string(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ = io.ReadAll(response.Body)
+	response.Body.Close()
+	if response.StatusCode == 400 && strings.Contains(string(body), "exceeds 32 files") {
+		t.Fatalf("seed-inclusive limit applied without SSH: %s", body)
 	}
 }

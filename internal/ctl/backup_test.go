@@ -83,7 +83,7 @@ func backupFixture(t *testing.T) (*Server, *backupPeer, model.BackupRequest) {
 	if err := db.PutHost(context.Background(), &host); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PutEnvironment(context.Background(), &env, []model.Vm{vm}); err != nil {
+	if err := db.PutEnvironment(context.Background(), &env, []model.Vm{vm}, nil); err != nil {
 		t.Fatal(err)
 	}
 	request := model.BackupRequest{OperationID: uuid.NewString(), ExpectedRevision: vm.Backup.Revision, Action: model.BackupRestore, Generation: &vm.Backup.Current.ID}

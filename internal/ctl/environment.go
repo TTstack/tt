@@ -42,7 +42,18 @@ func (s *Server) createEnvironment(ctx context.Context, request api.CreateEnvReq
 		if _, present := spec.GuestConfig[sshboot.SeedFile]; present {
 			return api.EnvDetail{}, apiError(400, "reserved guest configuration filename")
 		}
-		if err := guestconfig.Validate(spec.Engine, spec.GuestConfig, spec.IsolatedNetwork); err != nil {
+		files := spec.GuestConfig
+		if spec.Engine == model.Firecracker && spec.SSH != nil {
+			// The agent merges the managed SSH seed into the same config disk
+			// before re-validating, and the documented 32-file/64 KiB limit is
+			// seed-inclusive; admission must judge the same payload.
+			files = model.GuestConfig{}
+			for name, value := range spec.GuestConfig {
+				files[name] = value
+			}
+			files[sshboot.SeedFile] = ""
+		}
+		if err := guestconfig.Validate(spec.Engine, files, spec.IsolatedNetwork); err != nil {
 			return api.EnvDetail{}, apiError(400, err.Error())
 		}
 		if err := model.ValidateImage(spec.Image, spec.Engine); err != nil {
@@ -169,18 +180,15 @@ func (s *Server) planEnvironment(ctx context.Context, request api.CreateEnvReq, 
 		ids = append(ids, vm.ID)
 	}
 	env := model.Env{ID: request.ID, Owner: request.Owner, VmIds: ids, CreatedAt: created, ExpiresAt: expires, State: model.EnvCreating}
-	if err := s.db.PutEnvironment(ctx, &env, planned); err != nil {
-		return nil, internal(err)
-	}
 	for i := range hosts {
 		for _, vm := range planned {
 			if vm.HostID == hosts[i].ID {
 				hosts[i].Resource.Account(vm)
 			}
 		}
-		if err := s.db.PutHost(ctx, &hosts[i]); err != nil {
-			return nil, internal(err)
-		}
+	}
+	if err := s.db.PutEnvironment(ctx, &env, planned, hosts); err != nil {
+		return nil, internal(err)
 	}
 	s.revision.Add(1)
 	return requests, nil
@@ -262,7 +270,7 @@ func (s *Server) deleteEnvironment(ctx context.Context, id string, expiryOnly bo
 		s.dbMu.Unlock()
 		return internal(err)
 	}
-	hosts, err := s.db.RecoveryHosts(ctx)
+	hosts, _, err := s.db.RecoveryHosts(ctx)
 	s.dbMu.Unlock()
 	if err != nil {
 		return internal(err)
@@ -286,7 +294,9 @@ func (s *Server) deleteEnvironment(ctx context.Context, id string, expiryOnly bo
 			return internal(ctx.Err())
 		}
 		if err == nil {
-			if _, err := withDB(s, func(db *DB) (model.Unit, error) { return model.Unit{}, db.RemoveVM(ctx, vm.ID) }); err != nil {
+			// Confirmed deletion returns the reservation immediately instead of
+			// charging the host for up to one refresh cycle.
+			if _, err := withDB(s, func(db *DB) (model.Unit, error) { return model.Unit{}, db.RemoveVMRelease(ctx, vm) }); err != nil {
 				return internal(err)
 			}
 		} else {
@@ -339,7 +349,10 @@ func (s *Server) changeEnvironment(ctx context.Context, id, action string) *APIE
 	if detail.Env.State == model.EnvCreating || detail.Env.State == model.EnvDeleting {
 		return apiError(409, "environment has an operation in progress")
 	}
-	hosts, err := withDB(s, func(db *DB) ([]model.Host, error) { return db.RecoveryHosts(ctx) })
+	hosts, err := withDB(s, func(db *DB) ([]model.Host, error) {
+		hosts, _, err := db.RecoveryHosts(ctx)
+		return hosts, err
+	})
 	if err != nil {
 		return internal(err)
 	}
@@ -360,7 +373,7 @@ func (s *Server) changeEnvironment(ctx context.Context, id, action string) *APIE
 			}
 		}
 		if _, err := withDB(s, func(db *DB) (model.Unit, error) {
-			if err := db.PutEnvironment(ctx, &detail.Env, starting); err != nil {
+			if err := db.PutEnvironment(ctx, &detail.Env, starting, nil); err != nil {
 				return model.Unit{}, err
 			}
 			s.revision.Add(1)
@@ -414,6 +427,9 @@ func (s *Server) changeEnvironment(ctx context.Context, id, action string) *APIE
 	if len(failures) > 0 || env.State != expected {
 		env.State = model.EnvFailed
 		message := action + " incomplete: " + strings.Join(failures, "; ")
+		if len(failures) == 0 {
+			message = action + " incomplete: the resulting state did not match the request"
+		}
 		env.Error = &message
 		if _, err := withDB(s, func(db *DB) (model.Unit, error) { return model.Unit{}, db.PutEnv(ctx, env) }); err != nil {
 			return internal(err)

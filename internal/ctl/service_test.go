@@ -1,6 +1,7 @@
 package ctl
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -164,7 +165,7 @@ func TestServiceShutdownDrainsForegroundDeletionBeforeCancellingWork(t *testing.
 		t.Fatal(err)
 	}
 	env := model.Env{ID: "env", VmIds: model.List[string]{"vm"}, State: model.EnvActive}
-	if err := db.PutEnvironment(ctx, &env, []model.Vm{vm}); err != nil {
+	if err := db.PutEnvironment(ctx, &env, []model.Vm{vm}, nil); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
@@ -242,5 +243,49 @@ func TestServiceShutdownDrainsForegroundDeletionBeforeCancellingWork(t *testing.
 	retained, err := db.GetEnv(ctx, "env")
 	if err != nil || retained != nil {
 		t.Fatal(retained, err)
+	}
+}
+
+func TestRefreshReplacesUndecodableRowsWithOfflineMarkers(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	host := hostRecord("host-good")
+	if err := db.PutHost(ctx, &host); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.q.ExecContext(ctx, "INSERT INTO hosts (id,data) VALUES ('host-bad', ?1)", "{broken json"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.q.ExecContext(ctx, "INSERT INTO envs (id,data) VALUES ('env-bad', ?1)", "{broken json"); err != nil {
+		t.Fatal(err)
+	}
+	var logs bytes.Buffer
+	db.stderr = &logs
+	s := newServer(db, nil)
+	client, err := s.clientFactory(time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.refreshHosts(ctx, client, nil)
+	if t.Failed() || logs.Len() > 0 {
+		t.Logf("refresh logs: %s", logs.String())
+	}
+	bad, err := db.GetHost(ctx, "host-bad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bad == nil || bad.State != model.HostOffline || bad.Error == nil || !strings.Contains(*bad.Error, "offline marker") {
+		t.Fatal(bad)
+	}
+	envBad, err := db.GetEnv(ctx, "env-bad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envBad == nil || envBad.State != model.EnvFailed || envBad.Error == nil || !strings.Contains(*envBad.Error, "marker") {
+		t.Fatal(envBad)
+	}
+	good, err := db.GetHost(ctx, "host-good")
+	if err != nil || good == nil || good.Addr != "host-good:9100" {
+		t.Fatal(good, err)
 	}
 }

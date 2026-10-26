@@ -45,7 +45,7 @@ func TestHostEnvironmentAndVMCRUD(t *testing.T) {
 	if err := db.PutHost(ctx, &host); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PutEnvironment(ctx, &env, []model.Vm{vm}); err != nil {
+	if err := db.PutEnvironment(ctx, &env, []model.Vm{vm}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if count, err := db.HostCount(ctx); err != nil || count != 1 {
@@ -206,9 +206,12 @@ func TestEngineSetsRoundtripAndUnknownRecordsFailWithoutMutation(t *testing.T) {
 	if _, err := db.ListHosts(ctx); err == nil {
 		t.Fatal("strict list ignored corruption")
 	}
-	recovery, err := db.RecoveryHosts(ctx)
+	recovery, corrupt, err := db.RecoveryHosts(ctx)
 	if err != nil || len(recovery) != 0 {
 		t.Fatal(recovery, err)
+	}
+	if len(corrupt) != 1 || corrupt[0] != "host" {
+		t.Fatal(corrupt)
 	}
 	var retained textColumn
 	if err := db.q.QueryRowContext(ctx, "SELECT data FROM hosts WHERE id='host'").Scan(&retained); err != nil || string(retained) != string(raw) {
@@ -223,7 +226,7 @@ func TestEnvironmentPlanIsAtomicBeforeAgentContact(t *testing.T) {
 	ctx := context.Background()
 	execSQL(t, db, "CREATE TRIGGER reject_second BEFORE INSERT ON vms WHEN NEW.id='bad' BEGIN SELECT RAISE(ABORT,'injected plan failure');END;")
 	env := envRecord("planned")
-	if err := db.PutEnvironment(ctx, &env, []model.Vm{vmRecord("good", env.ID, "host"), vmRecord("bad", env.ID, "host")}); err == nil {
+	if err := db.PutEnvironment(ctx, &env, []model.Vm{vmRecord("good", env.ID, "host"), vmRecord("bad", env.ID, "host")}, nil); err == nil {
 		t.Fatal("injected failure hidden")
 	}
 	if count, err := db.VMCount(ctx); err != nil || count != 0 {
@@ -274,7 +277,7 @@ func TestDetachHostReturnsOrphansAndOnlyRemovesTracking(t *testing.T) {
 	if err := db.PutHost(ctx, &host); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PutEnvironment(ctx, &env, []model.Vm{vmRecord("orphan", env.ID, host.ID), vmRecord("retained", env.ID, "online")}); err != nil {
+	if err := db.PutEnvironment(ctx, &env, []model.Vm{vmRecord("orphan", env.ID, host.ID), vmRecord("retained", env.ID, "online")}, nil); err != nil {
 		t.Fatal(err)
 	}
 	orphans, err := db.DetachHost(ctx, host.ID)
@@ -302,11 +305,113 @@ func TestFleetStatusAggregatesOnlyOnlineCapacity(t *testing.T) {
 		}
 	}
 	env := envRecord("env")
-	if err := db.PutEnvironment(ctx, &env, []model.Vm{vmRecord("vm", env.ID, h1.ID)}); err != nil {
+	if err := db.PutEnvironment(ctx, &env, []model.Vm{vmRecord("vm", env.ID, h1.ID)}, nil); err != nil {
 		t.Fatal(err)
 	}
 	status, err := db.FleetStatus(ctx)
 	if err != nil || status.Hosts != 2 || status.HostsOnline != 1 || status.TotalEnvs != 1 || status.TotalVMs != 1 || status.CPUTotal != 8 || status.CPUUsed != 2 {
 		t.Fatal(status, err)
+	}
+}
+
+func TestEnvironmentPlanRollsBackHostReservationsTogether(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	host := hostRecord("host")
+	if err := db.PutHost(ctx, &host); err != nil {
+		t.Fatal(err)
+	}
+	env := envRecord("planned")
+	vm := vmRecord("vm", env.ID, host.ID)
+	host.Resource.Account(vm)
+	// INSERT OR REPLACE fires the INSERT trigger even over an existing row.
+	execSQL(t, db, "CREATE TRIGGER reject_host BEFORE INSERT ON hosts BEGIN SELECT RAISE(ABORT,'injected host failure');END;")
+	if err := db.PutEnvironment(ctx, &env, []model.Vm{vm}, []model.Host{host}); err == nil {
+		t.Fatal("injected host failure hidden")
+	}
+	if value, err := db.GetEnv(ctx, env.ID); err != nil || value != nil {
+		t.Fatal(value, err)
+	}
+	if count, err := db.VMCount(ctx); err != nil || count != 0 {
+		t.Fatal(count, err)
+	}
+	got, err := db.GetHost(ctx, host.ID)
+	if err != nil || got.Resource.CPUUsed != 0 || got.Resource.MemUsed != 0 || got.Resource.DiskUsed != 0 {
+		t.Fatal("host reservation leaked through a rolled-back plan", got.Resource)
+	}
+}
+func TestRemoveVMReleaseReturnsReservationsAtomically(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	host := hostRecord("host")
+	env := envRecord("env")
+	vm := vmRecord("vm", env.ID, host.ID)
+	host.Resource.Account(vm)
+	if err := db.PutHost(ctx, &host); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PutEnv(ctx, &env); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PutVM(ctx, &vm); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, db, "CREATE TRIGGER reject_host BEFORE INSERT ON hosts BEGIN SELECT RAISE(ABORT,'injected host failure');END;")
+	if err := db.RemoveVMRelease(ctx, vm); err == nil {
+		t.Fatal("host failure hidden")
+	}
+	if got, err := db.GetVM(ctx, vm.ID); err != nil || got == nil {
+		t.Fatal("VM row must survive a failed release transaction", got, err)
+	}
+	execSQL(t, db, "DROP TRIGGER reject_host")
+	if err := db.RemoveVMRelease(ctx, vm); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.GetHost(ctx, host.ID)
+	if err != nil || got.Resource.CPUUsed != 0 || got.Resource.MemUsed != 0 || got.Resource.DiskUsed != 0 || got.Resource.VmCount != 0 {
+		t.Fatal("reservations not returned", got.Resource)
+	}
+	if v, err := db.GetVM(ctx, vm.ID); err != nil || v != nil {
+		t.Fatal(v, err)
+	}
+}
+func TestFleetListingsStayIdOrderedAcrossRewrites(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	for _, id := range []string{"host-b", "host-a", "host-c"} {
+		host := hostRecord(id)
+		if err := db.PutHost(ctx, &host); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// INSERT OR REPLACE rewrites move the row to the end of the table.
+	host := hostRecord("host-a")
+	if err := db.PutHost(ctx, &host); err != nil {
+		t.Fatal(err)
+	}
+	hosts, err := db.ListHosts(ctx)
+	if err != nil || len(hosts) != 3 {
+		t.Fatal(hosts, err)
+	}
+	if hosts[0].ID != "host-a" || hosts[1].ID != "host-b" || hosts[2].ID != "host-c" {
+		t.Fatal(hosts)
+	}
+	env := envRecord("env")
+	if err := db.PutEnv(ctx, &env); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"vm-b", "vm-a"} {
+		vm := vmRecord(id, env.ID, "host-a")
+		if err := db.PutVM(ctx, &vm); err != nil {
+			t.Fatal(err)
+		}
+	}
+	vm := vmRecord("vm-a", env.ID, "host-a")
+	if err := db.PutVM(ctx, &vm); err != nil {
+		t.Fatal(err)
+	}
+	vms, err := db.VMsByEnv(ctx, env.ID)
+	if err != nil || len(vms) != 2 || vms[0].ID != "vm-a" || vms[1].ID != "vm-b" {
+		t.Fatal(vms, err)
 	}
 }

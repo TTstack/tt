@@ -213,10 +213,18 @@ func (d *deployer) installSystemd(ctx context.Context, name, command string, roo
 		if err != nil {
 			return fmt.Errorf("open env file: %w", err)
 		}
-		_, err = file.WriteString(environment.content)
-		file.Close()
-		if err != nil {
+		if _, err = file.WriteString(environment.content); err != nil {
+			file.Close()
 			return fmt.Errorf("write env file: %w", err)
+		}
+		// The env file carries the API key; a crash before it is durable would
+		// restart the freshly reloaded service without credentials.
+		if err = file.Sync(); err != nil {
+			file.Close()
+			return fmt.Errorf("sync env file: %w", err)
+		}
+		if err = file.Close(); err != nil {
+			return fmt.Errorf("close env file: %w", err)
 		}
 		_ = os.Chmod(path, 0600)
 		envPath = &environment.path

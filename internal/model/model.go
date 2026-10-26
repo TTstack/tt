@@ -74,6 +74,16 @@ func (r *Resource) Account(v Vm) {
 		r.MemUsed = SatAdd(r.MemUsed, v.Engine.MemoryReservation(v.Mem))
 	}
 }
+
+// Release undoes Account; callers use it when a VM leaves the fleet.
+func (r *Resource) Release(v Vm) {
+	r.DiskUsed = SatSub(r.DiskUsed, v.ReservedDisk())
+	r.VmCount = SatSub(r.VmCount, 1)
+	if v.State != VmStopped {
+		r.CPUUsed = SatSub(r.CPUUsed, v.CPU)
+		r.MemUsed = SatSub(r.MemUsed, v.Engine.MemoryReservation(v.Mem))
+	}
+}
 func NewBackupState() BackupState { return BackupState{Revision: uuid.NewString()} }
 func (g BackupGeneration) ReservedMiB() uint32 {
 	n := g.RootBytes / (1024 * 1024)

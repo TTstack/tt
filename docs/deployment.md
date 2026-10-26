@@ -15,7 +15,7 @@ Linux agents need root; the controller normally runs as `ttstack`.
 | Workflow | Required host preparation |
 |---|---|
 | QEMU/KVM | Usable `/dev/kvm`, `qemu-system-x86_64`, `qemu-img`, `genisoimage` or `mkisofs` |
-| Linux VM networking | Full `iproute2`, `nftables` and TUN/TAP support |
+| Linux VM networking | Full `iproute2`, `nftables` and TUN/TAP support; agent startup re-applies the NAT template, which is idempotent on nftables 1.1.x (verified on 1.1.6). On older daemons a replay after restart may fail until the managed table is recreated: `nft delete table ip tt-nat` (guests keep their disks; forwarding resumes when the agent replays) |
 | Firecracker | Compatible `firecracker`/`jailer`, KVM, writable cgroup v2 CPU/memory/PID controllers, prepared kernel/rootfs |
 | Config drives / ext4 growth | `mkfs.ext4`, `debugfs`, `e2fsck`, `resize2fs` and associated e2fsprogs tools |
 | Managed SSH | Host `ssh-keygen`/`ssh-keyscan` and the [guest prerequisites](ssh.md) |

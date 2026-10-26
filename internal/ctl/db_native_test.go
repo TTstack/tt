@@ -83,7 +83,7 @@ func TestNativeRustGoControllerDatabaseInterchange(t *testing.T) {
 	if err := db.PutHost(ctx, &host); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PutEnvironment(ctx, &env, []model.Vm{created}); err != nil {
+	if err := db.PutEnvironment(ctx, &env, []model.Vm{created}, nil); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()

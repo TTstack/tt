@@ -2,6 +2,7 @@ package ctl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -81,20 +82,33 @@ func (s *Server) resizeVM(ctx context.Context, id string, target model.VmResourc
 	if target.Disk < vm.Options.RequestedDisk || disk < vm.Disk {
 		return nil, apiError(400, "disk shrinking is not supported")
 	}
-	if !host.Resource.CanFit(target.CPU, vm.Engine.MemoryReservation(target.Mem), model.SatSub(disk, vm.ReservedDisk())) {
-		return nil, apiError(409, "insufficient resources on the workspace host")
-	}
 	previous := *vm
 	vm.PendingResources = &target
 	message := "resource update pending; retry the recorded target if interrupted"
 	vm.Error = &message
 	if _, err := withDB(s, func(db *DB) (model.Unit, error) {
+		// Re-check capacity under the database lock so a concurrently planned
+		// environment cannot slip through between the check and the intent.
+		fresh, err := db.GetHost(ctx, host.ID)
+		if err != nil {
+			return model.Unit{}, err
+		}
+		if fresh == nil {
+			return model.Unit{}, apiError(409, "the workspace host was removed")
+		}
+		if !fresh.Resource.CanFit(target.CPU, vm.Engine.MemoryReservation(target.Mem), model.SatSub(disk, vm.ReservedDisk())) {
+			return model.Unit{}, apiError(409, "insufficient resources on the workspace host")
+		}
 		if err := db.PutVM(ctx, vm); err != nil {
 			return model.Unit{}, err
 		}
 		s.revision.Add(1)
 		return model.Unit{}, nil
 	}); err != nil {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) {
+			return nil, apiErr
+		}
 		return nil, internal(err)
 	}
 	result, apiErr := s.sendResize(ctx, client, *host, *vm, previous, target, disk)

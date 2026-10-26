@@ -240,3 +240,32 @@ func TestExt4GrowthPreservesFilesAndRejectsShrinking(t *testing.T) {
 		t.Fatal("wrong disk sizes")
 	}
 }
+
+func TestFailedCloneCloneLeavesNoPlaceholder(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "first-attempt")
+	t.Setenv("TT_COPY_MARKER", marker)
+	fakeTool(t, "cp", `if [ ! -e "$TT_COPY_MARKER" ]; then
+ touch "$TT_COPY_MARKER"
+ printf 'simulated partial copy failure\n' >&2
+ exit 1
+fi
+exec /bin/cp "$@"
+`)
+	base := filepath.Join(dir, "base.qcow2")
+	writeTestFile(t, base, []byte("image-bytes"))
+	target := filepath.Join(dir, "clone-vm")
+	if err := (FileStore{}).CloneImage(context.Background(), base, target); err == nil {
+		t.Fatal("first attempt succeeded")
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatal("partial clone left behind", err)
+	}
+	if err := (FileStore{}).CloneImage(context.Background(), base, target); err != nil {
+		t.Fatal("retry did not recover", err)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || string(data) != "image-bytes" {
+		t.Fatal(string(data), err)
+	}
+}

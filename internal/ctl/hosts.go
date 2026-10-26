@@ -28,6 +28,9 @@ func (s *Server) registerHost(ctx context.Context, request api.RegisterHostReq) 
 	if !validAgentAddress(request.Addr) {
 		return nil, 0, apiError(400, "agent address must be host:port")
 	}
+	// A tolerated trailing slash must not survive into stored addresses: the
+	// client joins paths by concatenation and would emit double-slash URLs.
+	request.Addr = strings.TrimSuffix(request.Addr, "/")
 	client, err := s.clientFactory(30 * time.Second)
 	if err != nil {
 		return nil, 0, internal(err)

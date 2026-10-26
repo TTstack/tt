@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -136,9 +135,11 @@ func (f *Firecracker) prepareSandbox(ctx context.Context, vm *model.Vm, image st
 	if err := os.MkdirAll(s.Root, 0777); err != nil {
 		return nil, nil, fmt.Errorf("create Firecracker sandbox: %w", err)
 	}
-	ip, err := netip.ParseAddr(vm.IP)
-	if err != nil || !ip.Is4() {
-		return nil, nil, fmt.Errorf("guest IP: invalid IPv4 address")
+	// The jailer uid is derived from the guest address; only the managed
+	// subnet maps into the reserved 100000+ block, so bound the input to it.
+	ip, err := netcfg.FleetIPv4(vm.IP)
+	if err != nil {
+		return nil, nil, err
 	}
 	octets := ip.As4()
 	uid := uint32(100000) + uint32(octets[2])*256 + uint32(octets[3])

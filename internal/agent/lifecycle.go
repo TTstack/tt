@@ -196,7 +196,9 @@ func (r *Runtime) ResizeVM(ctx context.Context, id string, target model.VmResour
 	if vm.PendingResources == nil && vm.CPU == target.CPU && vm.Mem == target.Mem && vm.Options.RequestedDisk == target.Disk && vm.Disk == disk {
 		return vm, nil
 	}
-	grow := uint64(target.Disk) > current || vm.PendingResources != nil
+	// Re-entry after an interruption must not depend on the storage layer
+	// tolerating a same-size resize: grow only when the measured size lags.
+	grow := uint64(target.Disk) > current
 	vm.PendingResources = &target
 	vm.Error = stringPointer("resource update unfinished; retry the recorded target")
 	if err := saveVM(ctx, r.db.conn, vm); err != nil {

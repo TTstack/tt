@@ -56,11 +56,17 @@ func (d *Docker) command(vm *model.Vm) *exec.Cmd {
 }
 func (d *Docker) Create(ctx context.Context, vm *model.Vm, image, format string, keys []string) error {
 	out, err := runcmd.Output(ctx, d.command(vm), runcmd.DefaultTimeout)
-	if err != nil {
-		return fmt.Errorf("failed to spawn container: %w", err)
-	}
-	if !out.Success() {
-		return fmt.Errorf("%s run failed: %s", d.runtime.Command(), out.Stderr)
+	if err != nil || !out.Success() {
+		// A timeout or a lost response does not prove the daemon did not
+		// create the container; a blind retry would die on the name. Adopt the
+		// leftover only when it provably carries this VM's image, otherwise
+		// surface the original failure untouched.
+		if !d.adoptable(ctx, vm) {
+			if err != nil {
+				return fmt.Errorf("failed to spawn container: %w", err)
+			}
+			return fmt.Errorf("%s run failed: %s", d.runtime.Command(), out.Stderr)
+		}
 	}
 	state, err := d.State(ctx, vm)
 	if err != nil {
@@ -70,6 +76,31 @@ func (d *Docker) Create(ctx context.Context, vm *model.Vm, image, format string,
 		return fmt.Errorf("container exited during creation; use an image with a long-running command")
 	}
 	return nil
+}
+
+// adoptable reports whether a container already carrying this VM's name also
+// carries its image. Container names are tt-<vm id> and the spec is immutable
+// after planning, so an image match identifies the earlier, lost creation.
+func (d *Docker) adoptable(ctx context.Context, vm *model.Vm) bool {
+	if ctx.Err() != nil {
+		// The failed run may have consumed the caller's deadline; the probe
+		// stays bounded either way.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+	}
+	for range 5 {
+		out, err := runcmd.Output(ctx, exec.Command(d.runtime.Command(), "inspect", "-f", "{{.Config.Image}}", containerName(vm)), 2*time.Second)
+		if err == nil && out.Success() {
+			return strings.TrimSpace(string(out.Stdout)) == vm.Image
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
+	return false
 }
 func (d *Docker) Start(ctx context.Context, vm *model.Vm) error {
 	state, err := d.State(ctx, vm)
@@ -103,6 +134,16 @@ func (d *Docker) Stop(ctx context.Context, vm *model.Vm) error {
 	}
 	if state == nil {
 		return nil
+	}
+	if *state == model.VmPaused {
+		// Older daemons cannot stop a paused container; unpause first.
+		out, err := runcmd.Run(ctx, d.runtime.Command(), "unpause", containerName(vm))
+		if err != nil {
+			return err
+		}
+		if !out.Success() {
+			return fmt.Errorf("container unpause failed: %s", out.Stderr)
+		}
 	}
 	out, err := runcmd.Run(ctx, d.runtime.Command(), "stop", "-t", "10", containerName(vm))
 	if err != nil {

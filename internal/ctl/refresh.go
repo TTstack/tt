@@ -16,9 +16,21 @@ func (s *Server) RefreshAllHosts(ctx context.Context, client *agentClient) {
 func (s *Server) refreshHosts(ctx context.Context, client *agentClient, ownedEnv *string) {
 	revision := s.revision.Load()
 	hosts, err := withDB(s, func(db *DB) ([]model.Host, error) {
-		hosts, err := db.RecoveryHosts(ctx)
+		hosts, corrupt, err := db.RecoveryHosts(ctx)
 		if err != nil {
 			return nil, err
+		}
+		for _, id := range corrupt {
+			// A row the decoder cannot read would otherwise stay a phantom
+			// online host forever: online to the scheduler, unreachable to
+			// this loop. Replace it with a visible offline marker; the fresh
+			// snapshot pass below then converges it like any offline host.
+			// The storage field cannot express "unknown", and an offline host
+			// is never scheduled onto, so the placeholder never takes effect.
+			message := "unreadable host record replaced by an offline marker; re-register the agent"
+			if err := db.PutHost(ctx, &model.Host{ID: id, State: model.HostOffline, Engines: model.List[model.Engine]{}, Images: model.List[string]{}, Storage: model.File, Error: &message}); err != nil {
+				return nil, err
+			}
 		}
 		if ownedEnv != nil {
 			vms, err := db.VMsByEnv(ctx, *ownedEnv)
@@ -62,8 +74,21 @@ func (s *Server) refreshHosts(ctx context.Context, client *agentClient, ownedEnv
 			}
 		}
 	}
-	envs, err := withDB(s, func(db *DB) ([]model.Env, error) { return db.RecoveryEnvs(ctx) })
+	envs, err := withDB(s, func(db *DB) ([]model.Env, error) {
+		envs, corrupt, err := db.RecoveryEnvs(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range corrupt {
+			message := "unreadable environment record replaced by a failed marker; delete and recreate the environment"
+			if err := db.PutEnv(ctx, &model.Env{ID: id, State: model.EnvFailed, VmIds: model.List[string]{}, Error: &message}); err != nil {
+				return nil, err
+			}
+		}
+		return envs, nil
+	})
 	if err != nil {
+		s.log("[ctl] list envs: %v", err)
 		return
 	}
 	for _, env := range envs {
@@ -206,7 +231,7 @@ func (s *Server) updateEnvState(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	hosts, err := s.db.RecoveryHosts(ctx)
+	hosts, _, err := s.db.RecoveryHosts(ctx)
 	if err != nil {
 		return err
 	}

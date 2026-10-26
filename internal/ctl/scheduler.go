@@ -145,10 +145,12 @@ func ScheduleEnv(hosts []model.Host, specs []api.VmSpec, images HostImages) ([]S
 		for i := range shadow {
 			host := &shadow[i]
 			if host.ID == placement.HostID {
-				host.Resource.CPUUsed += defaultValue(spec.CPU, model.VMCPUDefault)
-				host.Resource.MemUsed += spec.Engine.MemoryReservation(defaultValue(spec.Mem, model.VMMemDefault))
-				host.Resource.DiskUsed += placement.Disk
-				host.Resource.VmCount++
+				// Reservation arithmetic saturates everywhere, including the
+				// speculative pass, per the compatibility contract.
+				host.Resource.CPUUsed = model.SatAdd(host.Resource.CPUUsed, defaultValue(spec.CPU, model.VMCPUDefault))
+				host.Resource.MemUsed = model.SatAdd(host.Resource.MemUsed, spec.Engine.MemoryReservation(defaultValue(spec.Mem, model.VMMemDefault)))
+				host.Resource.DiskUsed = model.SatAdd(host.Resource.DiskUsed, placement.Disk)
+				host.Resource.VmCount = model.SatAdd(host.Resource.VmCount, 1)
 				break
 			}
 		}

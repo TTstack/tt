@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/TTstack/tt/internal/model"
+	"github.com/TTstack/tt/internal/netcfg"
 	"github.com/TTstack/tt/internal/runcmd"
 )
 
@@ -107,7 +108,11 @@ func jailConfiguration(vm *model.Vm, root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s {\n path = %s;\n host.hostname = \"ttstack\";\n ip4.addr = %s;\n interface = \"tt0\";\n persist;\n mount.devfs;\n exec.start = \"/bin/sh /etc/rc\";\n exec.stop = \"/bin/sh /etc/rc.shutdown\";\n exec.timeout = 30;\n stop.timeout = 10;\n}\n", jailName(vm), quoted, vm.IP), nil
+	ip, err := netcfg.FleetIPv4(vm.IP)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s {\n path = %s;\n host.hostname = \"ttstack\";\n ip4.addr = %s;\n interface = \"tt0\";\n persist;\n mount.devfs;\n exec.start = \"/bin/sh /etc/rc\";\n exec.stop = \"/bin/sh /etc/rc.shutdown\";\n exec.timeout = 30;\n stop.timeout = 10;\n}\n", jailName(vm), quoted, ip), nil
 }
 func (j *Jail) Create(ctx context.Context, vm *model.Vm, image, format string, keys []string) error {
 	root, err := canonicalPath(image)
@@ -150,8 +155,11 @@ func (j *Jail) Create(ctx context.Context, vm *model.Vm, image, format string, k
 		if !utf8.Valid(old) {
 			return fmt.Errorf("read jail sshd config: invalid UTF-8")
 		}
-		if err := os.WriteFile(config, append([]byte("PermitRootLogin prohibit-password\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n"), old...), 0666); err != nil {
-			return fmt.Errorf("configure jail sshd: %w", err)
+		// Cold recreation must not accumulate duplicate directives.
+		if !strings.Contains(string(old), "PermitRootLogin prohibit-password\n") {
+			if err := os.WriteFile(config, append([]byte("PermitRootLogin prohibit-password\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n"), old...), 0666); err != nil {
+				return fmt.Errorf("configure jail sshd: %w", err)
+			}
 		}
 	}
 	if err := os.MkdirAll(j.runDir, 0777); err != nil {

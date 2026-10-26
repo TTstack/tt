@@ -186,3 +186,12 @@ func TestHelpForHelpSubcommandsMatchesRust(t *testing.T) {
 		}
 	}
 }
+
+func TestImageCreateRejectsEngineFilterOutsideAllRecipes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"image", "create", "alpine-cloud", "--engine", "docker"}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "--engine only applies") {
+		t.Fatal(code, stderr.String())
+	}
+}

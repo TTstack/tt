@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"os"
@@ -63,7 +64,7 @@ type Runtime struct {
 	now                          func() uint64
 }
 
-func newRuntime(ctx context.Context, host string, backend model.Storage, imageDir, runtimeDir, dbPath string, resource model.Resource) (*Runtime, error) {
+func newRuntime(ctx context.Context, host string, backend model.Storage, imageDir, runtimeDir, dbPath string, resource model.Resource, stderr io.Writer) (*Runtime, error) {
 	if backend == model.File {
 		if err := os.MkdirAll(imageDir, 0777); err != nil {
 			return nil, fmt.Errorf("create image_dir: %w", err)
@@ -78,6 +79,11 @@ func newRuntime(ctx context.Context, host string, backend model.Storage, imageDi
 	d, err := openAgentDatabase(ctx, dbPath)
 	if err != nil {
 		return nil, err
+	}
+	if stderr != nil {
+		// Assign before the recovery scan below so unreadable-inventory notices
+		// reach the caller's writer, not the process default.
+		d.stderr = stderr
 	}
 	store, err := storage.New(backend)
 	if err != nil {
@@ -162,13 +168,20 @@ func (r *Runtime) recount(ctx context.Context) error {
 	}
 	r.resource = ResourcesFor(r.resource, vms)
 	if corrupt {
-		r.resource.CPUUsed = r.resource.CPUTotal
-		r.resource.MemUsed = r.resource.MemTotal
-		r.resource.DiskUsed = r.resource.DiskTotal
-		r.resource.VmCount = model.MaxVMs
+		pinToCapacity(&r.resource)
 	}
 	return nil
 }
+
+// pinToCapacity marks every reservation dimension as fully consumed; both the
+// internal admission view and /api/info use it for unreadable inventory.
+func pinToCapacity(r *model.Resource) {
+	r.CPUUsed = r.CPUTotal
+	r.MemUsed = r.MemTotal
+	r.DiskUsed = r.DiskTotal
+	r.VmCount = model.MaxVMs
+}
+
 func (r *Runtime) capabilityTags() []string {
 	tags := append([]string{}, r.probedCapabilities...)
 	tags = append(tags, capability.LegacyBackup)

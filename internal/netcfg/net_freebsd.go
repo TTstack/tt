@@ -3,7 +3,9 @@ package netcfg
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -22,6 +24,15 @@ func (n *Network) SetupBridge(ctx context.Context) error {
 	if !exists {
 		if _, err := n.run(ctx, "ifconfig", "bridge", "create", "name", BridgeName); err != nil {
 			return err
+		}
+	} else {
+		// Never address a foreign interface that happens to carry our name.
+		info, err := n.run(ctx, "ifconfig", BridgeName)
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(info, "groups: bridge") {
+			return fmt.Errorf("%s exists but is not a bridge", BridgeName)
 		}
 	}
 	for _, args := range [][]string{{"ifconfig", BridgeName, "inet", BridgeCIDR}, {"ifconfig", BridgeName, "up"}, {"sysctl", "net.inet.ip.forwarding=1"}} {
@@ -143,6 +154,13 @@ func (n *Network) DestroyTap(ctx context.Context, id string) error {
 		return err
 	}
 	if containsWord(interfaces, tap) {
+		info, err := n.run(ctx, "ifconfig", tap)
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(info, "description: ttstack:"+id) {
+			return fmt.Errorf("TAP device ownership changed; retain resources")
+		}
 		if _, err := n.run(ctx, "ifconfig", tap, "destroy"); err != nil {
 			return err
 		}
@@ -189,16 +207,22 @@ func (n *Network) SetupNAT(ctx context.Context) error {
 	return nil
 }
 func (n *Network) loadAnchor(ctx context.Context, anchor, rule string) error {
-	file, err := os.CreateTemp("", "tt-pf-*")
+	// Rules travel over stdin from an open, unlinked scratch file rather than a
+	// named path in a shared temporary directory.
+	file, err := runcmd.AnonymousFile("", "tt-pf-")
 	if err != nil {
 		return fmt.Errorf("PF rule file: %w", err)
 	}
 	defer file.Close()
-	defer os.Remove(file.Name())
 	if _, err := file.WriteString(rule); err != nil {
 		return fmt.Errorf("write PF rule: %w", err)
 	}
-	out, err := n.output(ctx, runcmd.DefaultTimeout, "pfctl", "-a", anchor, "-f", file.Name())
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewind PF rule: %w", err)
+	}
+	cmd := exec.Command("pfctl", "-a", anchor, "-f", "-")
+	cmd.Stdin = file
+	out, err := n.execute(ctx, cmd, runcmd.DefaultTimeout)
 	if err != nil {
 		return fmt.Errorf("load PF anchor: %w", err)
 	}
