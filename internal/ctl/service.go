@@ -94,7 +94,7 @@ func serveController(ctx context.Context, cfg Config, stderr io.Writer) int {
 			}
 		}
 	}()
-	server := &http.Server{Handler: state.Handler()}
+	server := &http.Server{Handler: state.Handler(), ReadHeaderTimeout: 10 * time.Second} // see compatibility §7
 	serving := make(chan error, 1)
 	go func() { serving <- server.Serve(listener) }()
 	select {

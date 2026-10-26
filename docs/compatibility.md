@@ -323,6 +323,7 @@ at the API and filesystem boundary.
 | Error diagnostics | `ruc` may decorate business errors with ANSI escapes, timestamps, PID/namespace and Rust source locations | Go contextual error text without that process-specific decoration | preserve stable business messages and status/prefix mapping; avoid fabricated Rust stack locations |
 | Async runtime | Tokio | goroutines/context | idiomatic Go |
 | SQLite driver | rusqlite (cgo, bundled) | modernc.org/sqlite (pure Go) | no cgo; behavior fixed by pragmas and fixture tests |
+| HTTP services | axum/hyper reads request headers without a timeout | 10 s `ReadHeaderTimeout` on both servers | bound drip-fed connections (Slowloris); complete requests at any speed are unaffected, no timeout is added for bodies or responses |
 
 Native phase-4 HTTP observation established that `ruc::Error::to_string()` can
 include a timestamp, process ID, ANSI styling and source location inside the
