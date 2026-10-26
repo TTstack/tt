@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// Version is the product version shared by every binary, matching the pinned
+// Rust workspace version.
+const Version = "0.6.0"
+
 // CheckFlags enforces clap's non-repeating long options before flag.Parse.
 // Go's flag package otherwise accepts duplicate options and values on switches.
 func CheckFlags(fs *flag.FlagSet, args []string) error {
