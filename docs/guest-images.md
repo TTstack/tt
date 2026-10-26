@@ -112,7 +112,13 @@ and [disk backup](disk-backup.md) before changing retained state.
 ## Networking and published ports
 
 Linux QEMU/Firecracker use TAPs on `tt0`, `10.10.0.1/16`, with host-local guest
-addresses and nftables NAT. Addresses can repeat on different hosts; there is no
+addresses and nftables NAT. **A co-hosted Docker daemon drops that forwarded
+traffic by default; see [deployment](deployment.md#docker-co-hosted-with-an-agent)
+for the operator opt-in.** The seeded `dns_nameservers` are applied by most
+cloud images, but Alpine NoCloud's cloud-init does not write `/etc/resolv.conf`:
+its guests have IP-level egress through the host masquerade while name
+resolution fails inside the guest. The network seed is identical to the
+reference; this is an Alpine image property, not a fleet difference. Addresses can repeat on different hosts; there is no
 cross-host private guest network. Published TCP mappings belong to the agent host,
 not the controller, and target only packets addressed to that host. Traffic for
 another destination that happens to use the same numeric port keeps its destination.
@@ -134,7 +140,10 @@ Neither policy is implemented by Docker/Podman; bhyve has egress denial only.
 
 Experimental FreeBSD hosts require a prepared bridge and enabled PF with
 `rdr-anchor "ttstack/*"` and non-quick `anchor "ttstack/*"` hooks; outbound NAT is
-provisioned separately. Merge hooks into an owned configuration rather than
+provisioned separately. Without that NAT, guests whose base contains a public
+`resolv.conf` cannot resolve, and their sshd spends tens of seconds in resolver
+retries before answering new connections. Use generous SSH client timeouts or
+provision outbound NAT; the behavior is identical for the reference. Merge hooks into an owned configuration rather than
 replacing a shared firewall. For tests, use a dedicated VNET with bhyve/child-jail
 permissions and a matching devfs ruleset; [native tooling](../tools/native/README.md)
 records the verified setup. Fixed bridges, firewall names and run paths require
