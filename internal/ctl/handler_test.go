@@ -31,10 +31,12 @@ type mockAgent struct {
 	loseCreate   bool
 	loseResize   bool
 	creates      atomic.Int32
+	resizes      atomic.Int32
 	beforeInfo   func()
 	beforeStart  func()
 	beforeDelete func()
 	beforeCreate func(api.CreateVmReq)
+	beforeResize func()
 }
 
 func (m *mockAgent) handler() http.Handler {
@@ -146,6 +148,13 @@ func (m *mockAgent) resizeHTTP(w http.ResponseWriter, r *http.Request) {
 	target, ok := api.ReadJSON[model.VmResources](w, r)
 	if !ok {
 		return
+	}
+	m.resizes.Add(1)
+	m.mu.Lock()
+	before := m.beforeResize
+	m.mu.Unlock()
+	if before != nil {
+		before()
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -317,6 +326,93 @@ func TestResizeRecoversLostReplyAndPreservesRecordedTarget(t *testing.T) {
 	confirmed, apiErr := s.resizeVM(context.Background(), "vm", target)
 	if apiErr != nil || confirmed.CPU != 2 || confirmed.Disk != 32 {
 		t.Fatal(confirmed, apiErr)
+	}
+}
+
+func TestResizeRejectsGrowthBeyondTheHostDiskBudgetBeforeForwarding(t *testing.T) {
+	s, m := controllerFixture(t)
+	seedController(t, s, m)
+	ctx := context.Background()
+	if err := s.changeEnvironment(ctx, "env", "stop"); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Lock()
+	m.resource.DiskTotal = 32
+	m.mu.Unlock()
+	if _, err := s.resizeVM(ctx, "vm", model.VmResources{CPU: 1, Mem: 128, Disk: 64}); err == nil || err.Status != 409 {
+		t.Fatal("over-budget resize was not rejected", err)
+	}
+	vm, err := s.db.GetVM(ctx, "vm")
+	if err != nil || vm.PendingResources != nil || vm.Disk != 16 || m.resizes.Load() != 0 {
+		t.Fatal(vm, err, m.resizes.Load())
+	}
+}
+
+func TestResizePersistsDiskReservationBeforeForwardingAndReusesItOnRetry(t *testing.T) {
+	for _, pending := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pending=%v", pending), func(t *testing.T) {
+			s, m := controllerFixture(t)
+			seedController(t, s, m)
+			ctx := context.Background()
+			if err := s.changeEnvironment(ctx, "env", "stop"); err != nil {
+				t.Fatal(err)
+			}
+			target := model.VmResources{CPU: 1, Mem: 128, Disk: 32}
+			if pending {
+				vm, err := s.db.GetVM(ctx, "vm")
+				if err != nil {
+					t.Fatal(err)
+				}
+				vm.PendingResources = &target
+				if err := s.db.PutVM(ctx, vm); err != nil {
+					t.Fatal(err)
+				}
+			}
+			type observation struct {
+				disk uint32
+				err  error
+			}
+			observations := make(chan observation, 1)
+			m.mu.Lock()
+			m.resource.DiskTotal = 32
+			m.beforeResize = func() {
+				host, err := withDB(s, func(db *DB) (*model.Host, error) { return db.GetHost(ctx, "host") })
+				result := observation{err: err}
+				if host != nil {
+					result.disk = host.Resource.DiskUsed
+				}
+				observations <- result
+			}
+			m.mu.Unlock()
+			if _, err := s.resizeVM(ctx, "vm", target); err != nil {
+				t.Fatal(err)
+			}
+			observed := <-observations
+			if observed.err != nil || observed.disk != 32 {
+				t.Fatal("disk reservation was not durable before forwarding", observed)
+			}
+		})
+	}
+}
+
+func TestResizeIntentRollsBackWhenHostReservationCannotBeSaved(t *testing.T) {
+	s, m := controllerFixture(t)
+	seedController(t, s, m)
+	ctx := context.Background()
+	if err := s.changeEnvironment(ctx, "env", "stop"); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, s.db, "CREATE TRIGGER reject_host BEFORE INSERT ON hosts BEGIN SELECT RAISE(ABORT,'injected host failure');END;")
+	if _, err := s.resizeVM(ctx, "vm", model.VmResources{CPU: 1, Mem: 128, Disk: 32}); err == nil || err.Status != 500 {
+		t.Fatal(err)
+	}
+	vm, err := s.db.GetVM(ctx, "vm")
+	if err != nil || vm.PendingResources != nil || vm.Disk != 16 || m.resizes.Load() != 0 {
+		t.Fatal(vm, err, m.resizes.Load())
+	}
+	host, err := s.db.GetHost(ctx, "host")
+	if err != nil || host.Resource.DiskUsed != 16 {
+		t.Fatal(host, err)
 	}
 }
 func TestOldSnapshotsCannotOverwriteNewMutationState(t *testing.T) {

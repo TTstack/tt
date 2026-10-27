@@ -78,7 +78,7 @@ func (s *Server) retainBackup(ctx context.Context, expected model.Vm, view api.B
 		return api.BackupView{}, backupError("not found: VM removed during backup")
 	}
 	view.Vm = mergeVMSnapshot(*known, view.Vm)
-	if err := s.db.PutBackupObservation(ctx, &view.Vm, known.ReservedDisk()); err != nil {
+	if err := s.db.PutVMObservation(ctx, &view.Vm, known.ReservedDisk()); err != nil {
 		return api.BackupView{}, internal(err)
 	}
 	s.revision.Add(1)

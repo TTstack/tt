@@ -83,6 +83,7 @@ func (s *Server) resizeVM(ctx context.Context, id string, target model.VmResourc
 		return nil, apiError(400, "disk shrinking is not supported")
 	}
 	previous := *vm
+	previousDisk := vm.ReservedDisk()
 	vm.PendingResources = &target
 	message := "resource update pending; retry the recorded target if interrupted"
 	vm.Error = &message
@@ -96,10 +97,10 @@ func (s *Server) resizeVM(ctx context.Context, id string, target model.VmResourc
 		if fresh == nil {
 			return model.Unit{}, apiError(409, "the workspace host was removed")
 		}
-		if !fresh.Resource.CanFit(target.CPU, vm.Engine.MemoryReservation(target.Mem), model.SatSub(disk, vm.ReservedDisk())) {
+		if !fresh.Resource.CanFit(target.CPU, vm.Engine.MemoryReservation(target.Mem), model.SatSub(disk, previousDisk)) {
 			return model.Unit{}, apiError(409, "insufficient resources on the workspace host")
 		}
-		if err := db.PutVM(ctx, vm); err != nil {
+		if err := db.PutVMObservation(ctx, vm, previousDisk); err != nil {
 			return model.Unit{}, err
 		}
 		s.revision.Add(1)
@@ -131,7 +132,9 @@ func (s *Server) sendResize(ctx context.Context, client *agentClient, host model
 	}
 	if !successful(status) || !reply.OK {
 		if previous.PendingResources == nil && (status == 400 || status == 409) {
-			if _, err := withDB(s, func(db *DB) (model.Unit, error) { return model.Unit{}, db.PutVM(ctx, &previous) }); err != nil {
+			if _, err := withDB(s, func(db *DB) (model.Unit, error) {
+				return model.Unit{}, db.PutVMObservation(ctx, &previous, vm.ReservedDisk())
+			}); err != nil {
 				return nil, internal(err)
 			}
 		}
