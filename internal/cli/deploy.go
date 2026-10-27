@@ -322,7 +322,7 @@ func (d *deployer) local(ctx context.Context, role, release string) error {
 	if role == "agent" || role == "all" {
 		binary := filepath.Join(release, "tt-agent")
 		if !fileExists(binary) {
-			return fmt.Errorf("%s not found (run 'cargo build --release' first)", binary)
+			return fmt.Errorf("%s not found (run 'make release')", binary)
 		}
 		if err := d.installBinary(ctx, binary, prefix); err != nil {
 			return err
@@ -339,7 +339,7 @@ func (d *deployer) local(ctx context.Context, role, release string) error {
 		for _, name := range []string{"tt-ctl", "tt"} {
 			binary := filepath.Join(release, name)
 			if !fileExists(binary) {
-				return fmt.Errorf("%s not found", binary)
+				return fmt.Errorf("%s not found (run 'make release')", binary)
 			}
 			if err := d.installBinary(ctx, binary, prefix); err != nil {
 				return err

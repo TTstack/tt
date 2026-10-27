@@ -167,6 +167,39 @@ func TestUpgradePreservesDocumentedMountGuards(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalMissingBinaryDiagnosticsUseGoBuildInstructions(t *testing.T) {
+	for _, tc := range []struct {
+		role, missing string
+		present       []string
+	}{
+		{role: "agent", missing: "tt-agent"},
+		{role: "ctl", missing: "tt-ctl"},
+		{role: "ctl", missing: "tt", present: []string{"tt-ctl"}},
+	} {
+		t.Run(tc.role+"/"+tc.missing, func(t *testing.T) {
+			d := newDeployer(quietApplication())
+			d.platform = "linux"
+			d.root = t.TempDir()
+			if err := os.MkdirAll(d.path("/run/systemd/system"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			writeFixture(t, d.path("/proc/self/status"), "Uid:\t0\t0\t0\t0\n")
+			release := t.TempDir()
+			for _, name := range tc.present {
+				writeFixture(t, filepath.Join(release, name), "fake "+name)
+			}
+			d.execute = func(context.Context, *exec.Cmd, time.Duration) (runcmd.Result, error) {
+				return runcmd.Result{}, nil
+			}
+			err := d.local(context.Background(), tc.role, release)
+			want := filepath.Join(release, tc.missing) + " not found (run 'make release')"
+			if err == nil || err.Error() != want {
+				t.Fatal(err, want)
+			}
+		})
+	}
+}
 func TestRemoteScriptContainsSudoAndRefusesUnsupportedHosts(t *testing.T) {
 	script := remoteSetupScript("tt-agent", "/opt/tt/bin/tt-agent --listen 0.0.0.0:9100", "ttstack", "/home/ttstack", "/opt/tt", "/tmp/deploy-1", []string{"tt-agent"}, []string{"/home/ttstack/images"}, "testhost", &envFile{"/opt/tt/etc/tt-agent.env", "TT_API_KEY=fixture-key\n"})
 	for _, part := range []string{"sudo", "rc-service", "systemctl", "useradd", "EnvironmentFile=/opt/tt/etc/tt-agent.env", "TT_API_KEY=fixture-key", "KillMode=process", "TimeoutStopSec=360"} {
