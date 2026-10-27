@@ -49,6 +49,7 @@ preserve the observable contract.
 
 ## Validation evidence
 
+- [Repository overhaul, 2026-10-27](validation/overhaul-2026-10-27.md): full-scope inventory, resize reservation/deployment diagnostic fixes, local gates and verification limits.
 - [Shared-core parity, 2026-09-30](validation/shared-core-2026-09-30.md): Rust wire fixtures, bounded commands, native FreeBSD race/integration checks and limits.
 - [Storage/network parity, 2026-09-30](validation/storage-network-2026-09-30.md): Rust network fixtures, native FreeBSD file/ext4/ZFS tests, ownership and crash recovery.
 - [Engine parity](validation/engines-2026-09-30.md): command/configuration fixtures and ownership gates.
