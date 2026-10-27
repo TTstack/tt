@@ -113,6 +113,7 @@ tt env stop demo && tt env start demo && tt env delete demo
 | [Roadmap](docs/roadmap.md) | Phased task list and acceptance criteria |
 | [Rust → Go mapping](docs/mapping.md) | Where each Rust module lands in Go |
 | [Development](docs/development.md) | Build, test, lint, dependency policy |
+| [AI workflow](docs/ai-workflow.md) | Explicit Codex skills, review evidence, worktree safety and scoped validation |
 
 ## License
 

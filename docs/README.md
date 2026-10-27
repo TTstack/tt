@@ -11,6 +11,9 @@ maintained description of what is being built and why.
 | [Roadmap](roadmap.md) | see the phased task list, acceptance criteria and commit boundaries |
 | [Rust → Go mapping](mapping.md) | find where a Rust module or type lands in Go |
 | [Development](development.md) | build, test, lint and follow repository conventions |
+| [AI workflow](ai-workflow.md) | invoke review/fix/commit skills and choose scope, ownership and validation |
+| [Review guide](ai-review.md) | check Go/Rust parity, lifecycle invariants and finding evidence |
+| [Current findings](audit.md) | track confirmed outstanding maintenance defects |
 
 Operator guides:
 
@@ -31,6 +34,10 @@ Operator guides:
   the corresponding file in `../TTstack/crates`.
 - **Reviewing a change**: [compatibility.md](compatibility.md) first; anything that
   changes a wire field, schema version, path or printed output must be recorded there.
+- **AI-assisted maintenance**: [AGENTS.md](../AGENTS.md) →
+  [ai-workflow.md](ai-workflow.md) → [ai-review.md](ai-review.md), then only the
+  subsystem guides needed for the selected task. Use the four `.agents/skills/`
+  entrypoints explicitly when their review/fix/commit behavior is intended.
 
 ## Source of truth
 

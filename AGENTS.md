@@ -4,6 +4,16 @@
 behavioral and wire parity with the Rust release, in idiomatic Go. Read
 [docs/plan.md](docs/plan.md) first, then the document that matches your task.
 
+## AI workflows
+
+This file is the shared agent entrypoint. Reusable workflows live in
+`.agents/skills/`: `$x-review` reviews, `$x-fix` fixes recorded findings,
+`$x-commit` reviews and commits intended work, and `$x-overhaul` combines review,
+fixes and commits. These skills require explicit invocation; ordinary requests
+do not implicitly authorize commits. See [docs/ai-workflow.md](docs/ai-workflow.md)
+for scopes, ownership, validation and commit rules. Read
+[docs/ai-review.md](docs/ai-review.md) for review evidence and subsystem checks.
+
 ## Scope and ownership
 
 - `cmd/{tt,tt-ctl,tt-agent,upgrade-agent-v5}`: startup wiring only.
@@ -13,8 +23,11 @@ behavioral and wire parity with the Rust release, in idiomatic Go. Read
   host OS at runtime.
 - `internal/agent`, `internal/ctl`, `internal/cli`: the three components.
 
-The reference implementation lives at `../TTstack`; where the two disagree, the
-Rust source defines the expected behavior and this repository has a bug.
+The reference implementation normally lives at `../TTstack`. The revision pinned
+in the plan defines expected behavior, subject to the documented deviations in
+compatibility §7; the sibling checkout's current HEAD is not automatically the
+oracle. If that checkout is unavailable, use committed fixtures and documented
+contracts, and label source-dependent parity conclusions unverified.
 
 ## Ground rules
 
@@ -31,9 +44,15 @@ Rust source defines the expected behavior and this repository has a bug.
 
 ## Development and verification
 
-- Phased delivery: follow [docs/roadmap.md](docs/roadmap.md); each phase ends with
+- For phased delivery, follow [docs/roadmap.md](docs/roadmap.md); each phase ends with
   `gofmt -l .` clean, `go vet ./...`, `go test ./...`, `go build ./...` and one
-  commit. Do not start the next phase on a red build.
+  commit. Do not start the next phase on a red build. Phases 0–7 are complete;
+  routine maintenance uses the scoped gates in the AI workflow, without version
+  bumps or commits unless requested.
+- This shared workstation uses `GOMAXPROCS=2` and Go `-p 1`, with checks run
+  sequentially. Do not set up local VM/container/network infrastructure. Real
+  tool/disk integration, race suites and Rust builds run on authorized hosts or
+  CI; do not enable native-test environment variables for normal local tests.
 - Port the Rust unit tests that encode contracts; keep their intent and names
   recognizable. Add golden fixtures for wire types instead of asserting by hand.
 - Check lifecycle changes for partial failure and retries. A timeout does not
@@ -50,6 +69,22 @@ testing, keep well under half of host CPU/memory, never disturb existing guests,
 and clean up only what the task created. Administrative keys stay out of logs and
 reports. FreeBSD engines are experimental; state their limits when reporting
 results.
+
+Existing validation reports and harness paths are evidence, not authorization
+to reuse a host or mutate its resources. Follow the isolation requirements in
+[docs/roadmap.md](docs/roadmap.md#live-validation-order-and-isolation).
+
+## Code review rules
+
+- Report concrete triggers and observable consequences, supported by current
+  code and the pinned contract. Style preferences and speculative improvements
+  are not parity defects. Check callers and guards before recording a finding.
+- Unknown creation/deletion outcomes must retain ownership and reservations;
+  recovery must not adopt or destroy resources based on a name or stale PID alone.
+- A passing mock, cross-build or historical native report does not prove current
+  native behavior. State what was checked, what was skipped and what remains
+  unverified. Record confirmed outstanding findings in [docs/audit.md](docs/audit.md)
+  when using the project review workflows.
 
 ## Repository layout notes
 

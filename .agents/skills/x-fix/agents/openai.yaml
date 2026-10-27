@@ -1,0 +1,5 @@
+interface:
+  display_name: "tt Fix"
+  short_description: "Fix recorded tt defects in atomic commits"
+policy:
+  allow_implicit_invocation: false

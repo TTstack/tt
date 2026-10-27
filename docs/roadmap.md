@@ -1,5 +1,9 @@
 # Roadmap
 
+Phases 0–7 below record the original delivery and its acceptance. Ongoing
+maintenance follows [the AI workflow](ai-workflow.md), with atomic per-issue
+commits when requested; it does not reopen a phase or trigger a release bump.
+
 Phased delivery of the Go port. Every phase ends with a green build, `go vet`,
 `go test ./...`, and exactly one commit. Later phases must not start before the
 previous phase's acceptance criteria are met — the point of the staging is that a
@@ -72,7 +76,8 @@ Deliverables
   `e2fsprogs` and OpenSSH tools installed, and Linux/FreeBSD cross-build jobs.
 - `cmd/{tt,tt-ctl,tt-agent,upgrade-agent-v5}/main.go` stubs that parse flags and
   print usage.
-- `AGENTS.md`, `CLAUDE.md`, `docs/` (this set).
+- `AGENTS.md`, `docs/` (this set). The original `CLAUDE.md` forwarding file was
+  retired when maintenance standardized on `AGENTS.md` and `.agents/skills/`.
 
 Acceptance
 

@@ -1,0 +1,5 @@
+interface:
+  display_name: "tt Review"
+  short_description: "Review tt parity and lifecycle regressions"
+policy:
+  allow_implicit_invocation: false
