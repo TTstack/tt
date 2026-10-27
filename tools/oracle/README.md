@@ -4,6 +4,10 @@
 revision into private staging, adds the example harness, and builds it with the
 reference Cargo.lock. It never edits the reference checkout. Run it on an
 authorized remote build host, not the constrained development workstation.
+Use the official latest stable Rust: update with `rustup update stable` and
+select it with `RUSTUP_TOOLCHAIN=stable` or `cargo +stable`. This repository
+defines no compatible Rust version range or minimum compiler. The pinned source
+revision and Cargo.lock identify the behavioral oracle, not a compiler pin.
 
 For phase 1 the output is `internal/api/testdata/wire.json`. The result records the
 source revision and lockfile hash. It covers each wire structure and enum with

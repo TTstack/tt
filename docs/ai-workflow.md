@@ -85,7 +85,9 @@ Do not change branches or rewrite history to bypass it.
 ## Go validation
 
 Run the smallest meaningful regression first, then the gates appropriate to the
-changed behavior. Reuse passing results while the relevant code/configuration
+changed behavior. A full `$x-overhaul all` audit runs the normal local code
+gates even when it needs no fix; report unavailable native gates as limits.
+Reuse passing results while the relevant code/configuration
 state is unchanged; do not repeat a full suite merely because workflows compose.
 
 | Change | Required validation |
