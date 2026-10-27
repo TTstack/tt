@@ -250,7 +250,7 @@ func TestBackupObservationCommitsVMAndReservationTogether(t *testing.T) {
 		t.Fatal(err)
 	}
 	vm.Backup.Current = &model.BackupGeneration{ID: uuid.NewString(), Backend: model.BackupReflink, RootBytes: 16 * 1024 * 1024}
-	if err := db.PutBackupObservation(ctx, &vm, 16); err != nil {
+	if err := db.PutVMObservation(ctx, &vm, 16); err != nil {
 		t.Fatal(err)
 	}
 	got, err := db.GetHost(ctx, host.ID)
@@ -260,7 +260,7 @@ func TestBackupObservationCommitsVMAndReservationTogether(t *testing.T) {
 	execSQL(t, db, "CREATE TRIGGER reject_host BEFORE INSERT ON hosts BEGIN SELECT RAISE(ABORT,'injected host failure');END;")
 	previous := vm.Backup.Revision
 	vm.Backup.Revision = uuid.NewString()
-	if err := db.PutBackupObservation(ctx, &vm, 32); err == nil {
+	if err := db.PutVMObservation(ctx, &vm, 32); err == nil {
 		t.Fatal("host failure hidden")
 	}
 	stored, err := db.GetVM(ctx, vm.ID)

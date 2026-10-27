@@ -374,8 +374,11 @@ func (d *DB) RemoveVMRelease(ctx context.Context, vm model.Vm) error {
 		return tx.PutHost(ctx, host)
 	})
 }
-func (d *DB) PutBackupObservation(ctx context.Context, vm *model.Vm, previousDisk uint32) error {
-	return d.transaction(ctx, "backup observation", func(tx *DB) error {
+
+// PutVMObservation commits a VM and the change in its host disk reservation
+// together, including backup observations and pending resource updates.
+func (d *DB) PutVMObservation(ctx context.Context, vm *model.Vm, previousDisk uint32) error {
+	return d.transaction(ctx, "VM observation", func(tx *DB) error {
 		if err := tx.PutVM(ctx, vm); err != nil {
 			return err
 		}

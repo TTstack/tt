@@ -213,6 +213,10 @@ CREATE INDEX idx_vms_host ON vms(host_id);
   non-object row aborts the transaction and leaves the version untouched.
 - Pragmas: `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON`,
   `busy_timeout=5000`.
+- Pending resource updates reserve only growth beyond the previous disk
+  reservation. The VM intent and host disk counters commit atomically before
+  forwarding; exact retries reuse that charge, and a definitive fresh rejection
+  releases it with the intent.
 - Row payloads are the JSON documents described in §2 — field names and omission
   rules included. Byte-identical serialization is not required (JSON object order
   is not meaningful), but decoding a Rust-written row and re-encoding it must
