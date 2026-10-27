@@ -53,6 +53,9 @@ contracts, and label source-dependent parity conclusions unverified.
   sequentially. Do not set up local VM/container/network infrastructure. Real
   tool/disk integration, race suites and Rust builds run on authorized hosts or
   CI; do not enable native-test environment variables for normal local tests.
+- Rust oracle builds use the official latest stable Rust; this repository
+  defines no compatible Rust version range or minimum compiler. The pinned
+  reference source revision remains the behavioral oracle.
 - Port the Rust unit tests that encode contracts; keep their intent and names
   recognizable. Add golden fixtures for wire types instead of asserting by hand.
 - Check lifecycle changes for partial failure and retries. A timeout does not
