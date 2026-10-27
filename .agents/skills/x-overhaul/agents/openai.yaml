@@ -1,0 +1,5 @@
+interface:
+  display_name: "tt Overhaul"
+  short_description: "Review, fix and commit scoped tt defects"
+policy:
+  allow_implicit_invocation: false

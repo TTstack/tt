@@ -39,6 +39,9 @@ Real tool/disk tests are opt-in, and heavy Rust reference builds, integration an
 race suites run on authorized remote test machines or CI. Live testing starts on
 the dedicated FreeBSD host; Linux testing follows stable basic flows, within the
 resource and namespace limits in [roadmap.md](roadmap.md#live-validation-order-and-isolation).
+The [AI workflow validation matrix](ai-workflow.md#go-validation) distinguishes
+documentation-only work, ordinary Go gates, cross-builds and native acceptance,
+and lists the opt-in test environment variables.
 
 ## Dependencies
 
@@ -95,16 +98,17 @@ Everything else comes from the standard library. In particular: no CLI framework
 
 ## Working with the Rust reference
 
-`../TTstack` is the reference. When implementing a package:
+The Rust revision pinned in [plan.md](plan.md) is the reference; `../TTstack` is
+its usual checkout location. When maintaining a package:
 
 1. Read the matching Rust file (see [mapping.md](mapping.md)).
 2. Port the unit tests that encode contracts, keeping their names recognizable.
 3. Record every deliberate deviation in [compatibility.md](compatibility.md) §7
    before writing it.
 
-Golden fixtures are generated from the pinned Rust source with a documented
-command; a small harness is added under `tools/` in phase 1, without modifying the
-reference checkout. It records the source revision and lockfile hash, generates
+Golden fixtures are generated from the pinned Rust source using the commands in
+[the oracle guide](../tools/oracle/README.md), without modifying the reference
+checkout. The harness records the source revision and lockfile hash, generates
 synthetic examples, and tests both accepted and rejected input. Normal Go tests
 consume committed JSON/SQL fixtures without invoking Rust. Compare JSON with
 integer precision and missing/null distinctions; only contractual text and
@@ -115,22 +119,30 @@ revision or verify its provenance; its path alone does not prove which code it r
 
 ## Git conventions
 
-- One commit per roadmap phase; the message states the phase and its scope.
+- For roadmap delivery, one commit per phase; the message states the phase and
+  its scope. Phases 0–7 are complete. Routine maintenance uses one independent
+  issue/root cause per commit, with its tests and contract docs.
 - A prerequisite review/fix of the plan is its own documentation commit, before
   implementation phases. Unfinished acceptance work is recorded as unfinished.
 - Commit messages: imperative subject, body explaining behavior and verification,
   ending with the attribution line required by the tooling in use.
 - Never commit generated binaries, databases, keys or host inventories; see
   `.gitignore`.
-- Documentation-only changes still run `gofmt`/`go vet` when Go files are touched
-  and always check that links in the touched documents resolve.
+- Documentation-only changes check `git diff --check` and local links/anchors;
+  skill changes also check metadata and references. Go changes run formatting,
+  vet, tests and builds as described in the workflow validation matrix.
+- [AI maintenance workflows](ai-workflow.md) define optional explicit review,
+  fix and commit skills, worktree ownership and local commit validation. They
+  do not automatically bump versions, tag, push or authorize live systems.
 
 ## Documentation conventions
 
 - English, in the repository.
 - One maintained place per behavior: this `docs/` tree describes the Go
-  implementation; do not copy Rust documentation that would drift. Where the Rust
-  document is still authoritative (for example `rest-api.md` during phase 5), link
-  to it explicitly.
+  implementation; do not copy Rust documentation that would drift. Link to the
+  pinned Rust source when it defines a contract rather than duplicating it.
+  [AGENTS.md](../AGENTS.md) is the agent entrypoint, `.agents/skills/` contains
+  task procedures, and the shared AI guides live here rather than in a parallel
+  tool-specific documentation tree.
 - Any change to a wire field, path, default or printed output updates
   [compatibility.md](compatibility.md) in the same commit.
