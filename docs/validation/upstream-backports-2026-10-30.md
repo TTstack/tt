@@ -7,9 +7,12 @@ internal API/model packages, six-hour default lifetime, implicit SSH forwarding,
 dependency versions and Dependabot configuration are retained. New commits use
 `Your Name <you@example.com>` for both author and committer.
 
-The optional protocols advance controller/agent schemas to v9/v10 at startup,
-including legacy-profile databases. This forward-only upgrade is outside pinned
-Rust state compatibility; see the normative
+The current controller/agent schema markers remain 9/10. Before v1.0, maintain
+only the latest development layout without incrementing these markers or
+requiring compatibility with earlier development databases. Version checks and
+migration infrastructure remain for future stable releases; see the
+[DB policy](../development.md#db-schema-policy-before-v10). Current state is
+outside pinned Rust state compatibility, as described by the
 [upgrade boundary](../compatibility.md#10-durable-command-envelope-optional-extension).
 No product version bump or new dependency is included.
 
@@ -69,12 +72,19 @@ were extracted into the private test scope; no host Docker store was used.
 | Portable archives/image cache | File Firecracker/QEMU and zvol Firecracker root/data round trips, digest/size envelope, refreshed-grant replay, restored boot, verified image pull/boot, corruption retention, explicit abort and cache cleanup |
 | Backup fault/recovery | Disconnect after durable admission, same-ID/revision replay, held retired snapshot across refresh/restore, explicit release and cleanup |
 | Physical recovery, QEMU and Firecracker | Passive surprise-exit observation preserves durable claims; actual predecessor survives receiver stop; SQLite rollback loses its row; new epoch refuses old commands; pidfd fence stops the scoped untracked process; receipt replay, complete orphan inventory and data preservation |
+| Controller/receiver activation and enrollment | Real services verify reads/mutations/GC chains, stable replay, wrong plan/scope/host refusal, legacy-registration refusal and explicit enrollment without adopting an existing running agent VM |
+| Quarantine and physical paging | A 32-MiB orphan reserves capacity across disappearance and receiver restart; over-capacity allocation is refused; one-item pages retain snapshot/digest identity, bad cursors are refused, epoch changes expire pages and changed evidence prevents activation |
+| Recovery boundaries and cleanup gates | Old workload success cannot replay in a new epoch; controller barrier leaves QEMU running, physical receiver fence stops it; forwarded deletion requires both GC gates; a new reviewed empty epoch releases the retained physical-capacity floor |
 | ZFS native unit gates | Real backup/restore/ownership and logical-capacity inventory with missing-root detection both PASS under dedicated quota-limited parents |
 
-Controller activation/enrollment, quarantine admission, paging limits and refusal
-paths additionally passed unit/race tests; they were not all exercised through a
-physical fleet orchestrator. The managed cgroup fence does not prove whole-host
-power fencing or containment of unrelated legacy workloads.
+The supplementary `tools/native/control.py` run used a separate private Linux
+lab capped at 4 CPU/4 GiB, with a single 1-CPU/256-MiB QEMU guest. Its three
+reviewed epochs used separate receiver authority files and one shared deployment
+identity. The retained QEMU capacity envelope was 80 MiB after the orphan was
+resolved; VM deletion and restart retained that floor until the next reviewed
+empty epoch explicitly replaced it with zero. These checks ran through actual
+HTTP services, not a fleet orchestration product. The managed cgroup fence does
+not prove whole-host power fencing or containment of unrelated legacy workloads.
 
 ## Corrections made during validation
 
@@ -97,6 +107,12 @@ power fencing or containment of unrelated legacy workloads.
   identity checks were not relaxed. Disconnect injection now establishes durable
   admission before disconnecting. The private systemd fixture supplies the
   `which` alternatives link needed for honest capability probing.
+- The private lab PID 1 now reaps adopted engine children independently of the
+  RPC worker. Without a namespace reaper, an exited daemonized QEMU remained a
+  zombie and the receiver correctly refused to confirm its physical fence. No
+  product process-identity guard was weakened. Failed fixture attempts retained
+  their metadata; their exact owned VMs were physically fenced and explicitly
+  deleted before rerunning the corrected fixture.
 - Schema documentation and optional-section references now agree with v9/v10.
   Native oracle tests describe forward migration and old-reader refusal, while
   preserving offline v5-to-v6 converter checks. Those oracle-dependent cases
@@ -132,3 +148,9 @@ FreeBSD teardown verified empty VM databases/run paths/VMMs, removed only the
 confirmed the original gateway jail (JID 4) and `re0`/`lo0` interfaces unchanged.
 Management SSH remained reachable on both hosts. Temporary test credentials and
 SSH forwards were removed; private logs and diagnostic metadata remain outside git.
+
+The supplementary controller lab likewise ended with empty VM/environment and
+physical runtime inventories, zero active volume claims and no test credentials.
+Its bounded unit was stopped after checking its memory counters. Host firewall,
+interfaces and the original Docker process were compared with the captured
+pre-run state. Its diagnostic metadata remains separate from the original runs.

@@ -2,6 +2,24 @@
 import json,os,pathlib,signal,socketserver,subprocess
 root=pathlib.Path('/tmp/tt-go-port-6426');path=root/'lab.sock'
 if path.exists():raise RuntimeError('refusing to replace an existing lab socket')
+# Daemonized engines can outlive their service parent during recovery drills.
+# Namespace PID 1 must reap adopted children; the RPC worker owns and waits for
+# its direct commands separately, so their exit statuses cannot be stolen.
+if os.getpid()==1:
+ worker=os.fork()
+ if worker:
+  stopping=False
+  def terminate(signum,_frame):
+   global stopping
+   stopping=True
+   try:os.kill(worker,signum)
+   except ProcessLookupError:pass
+  signal.signal(signal.SIGTERM,terminate)
+  signal.signal(signal.SIGINT,terminate)
+  while True:
+   try:child,status=os.wait()
+   except InterruptedError:continue
+   if child==worker:raise SystemExit(0 if stopping else os.waitstatus_to_exitcode(status))
 class Handler(socketserver.StreamRequestHandler):
  def handle(self):
   request=json.loads(self.rfile.readline(524288))

@@ -38,7 +38,9 @@ This is below the half-capacity budget of the tested hosts; recompute the budget
 including existing work on any different host. The lab has separate mount, network,
 PID and cgroup namespaces. `/home/ttstack`, `/run` and the writable cgroup view are
 private. The root-only Unix socket runs child commands within the same resource
-bound. Mutating Python harnesses verify PID 1's exact lab-server marker.
+bound. Namespace PID 1 reaps adopted engine children while a separate RPC worker
+waits for its own commands. Mutating Python harnesses verify PID 1's exact
+lab-server marker.
 
 Before work, capture `nft -j list ruleset` to `host-nft-before.json` and `ip -j addr`
 to `host-addresses-before.json` in the task directory, from the real host. After
@@ -75,6 +77,23 @@ recipe, plus the static `native-http.go` binary at `usr/local/bin/native-http`.
 Build that named Go file with CGo disabled and repack the archive as
 `downloads/docker-fixture.tar.gz`. The harness imports it with a long-running
 HTTP default command. It never uses the host's Docker socket or store.
+
+`control.py --lab-root /tmp/tt-go-port-6426 --attempt fresh1` exercises the modern
+external-authority profile using real Go controller/agent services and one small
+QEMU guest. Use a fresh lab and attempt name, current `bin/tt-{agent,ctl}` and a
+verified file-backed `images/alpine-cloud`. If using another lab root, replace
+the default path in the three lab helpers before launching them. This harness
+does not require Rust binaries or `native_request.py`.
+
+The checks cover frozen inventory paging, changed-inventory refusal, durable
+quarantine capacity, explicit enrollment without workload adoption, epoch refusal,
+the distinction between controller quiescence and host physical fencing, and
+both receivers' GC gates. A new empty reviewed epoch must release the retained
+capacity floor. Its JSON evidence and ownership manifest remain in the private
+attempt directory; API keys never enter the report. On failure, services stop
+but owned guest state is retained for inspection. Fence and explicitly delete
+those exact resources before another attempt; do not infer absence from a failed
+request or reuse the state as a fresh scope.
 
 `systemd-driver.py` requires `systemd-root.sh`, `systemd-cgroup.sh` and
 `systemd-workflow.py` beside it. It uses a private root login to supply standard
