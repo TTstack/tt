@@ -24,7 +24,7 @@ agents/guests ran in private mount, network, PID and cgroup namespaces, capped a
 4 CPU and 8 GiB on a 24-thread, 30-GiB host. Private nested fixtures covered a
 second agent, containers and systemd; the latter had a 1-CPU/2-GiB sub-budget.
 Build/race work used `GOMAXPROCS=2` and Go `-p 1`. FreeBSD used one small guest at
-a time; its existing gateway jail was untouched. FreeBSD engines remain experimental.
+a time; its existing gateway jail was untouched. Native FreeBSD coverage for this run is 15.1 only.
 
 The tested final Go-source digest, over sorted repository-relative Go filenames,
 `go.mod` and `go.sum`, separated from their contents by NUL bytes, is

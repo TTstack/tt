@@ -73,7 +73,7 @@ once. Failed refresh preserves the published generation; failed restore/delete
 keeps its durable intent. Cleanup retains reservations and uses bounded backoff.
 
 Disk backup admission defaults to disabled and needs backend qualification.
-FreeBSD engine support remains experimental; successful API/state checks are not
+FreeBSD engine support is validated on FreeBSD 15.x only; successful API/state checks are not
 proof of guest boot or application readiness.
 
 ## Controller coordination

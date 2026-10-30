@@ -109,7 +109,7 @@ module unloaded again) and the pre-existing gateway jail kept working;
 devices). Credentials and keys were not committed anywhere. The repository
 working tree was left clean.
 
-Limits: functional tests, not benchmarks. FreeBSD engines remain experimental.
+Limits: functional tests, not benchmarks. Native FreeBSD coverage in this run is 15.1 only.
 The bhyve image, mirror downloads and L4 relay were operator plumbing for this
 lab, not product behavior. Podman, Firecracker and zvol paths were not in
 scope; their live evidence remains with the 2026-09-30 native records.

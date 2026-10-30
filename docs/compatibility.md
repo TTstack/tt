@@ -344,6 +344,7 @@ at the API and filesystem boundary.
 | Undecodable controller rows | every recovery read drops them (phantom rows keep their last state) | replaced with offline/failed markers carrying an operator-facing error; an offline host marker with no address can be re-registered by its verified host ID, retaining tracked VMs and reservation floors | keep damaged records visible and allow recovery without detaching their VMs |
 | Guest-config admission | 32-file/64 KiB limit judged without the managed SSH seed at admission and with it at runtime | the seed-inclusive payload is judged at admission, matching the documented limit text | one Firecracker + SSH shape now fails earlier with a clear 400 instead of a runtime VM failure |
 | Deploy diagnostics for missing binaries | `run 'cargo build --release'` | `run 'make release'` in local and distributed deployment, checked per deployed role | Go build instructions; agents-only deployments need no controller binaries |
+| FreeBSD experimental label | bhyve and Jail combinations set `experimental` to true; CLI, help, dashboard and the agent startup warning call FreeBSD experimental | the JSON field remains, and Go emits `false`; platform stays `freebsd`; human text says validated only on FreeBSD 15.x; the startup warning is not printed | native Jail, bhyve file and bhyve zvol ran on FreeBSD 15.1; other FreeBSD releases are not claimed |
 
 Native phase-4 HTTP observation established that `ruc::Error::to_string()` can
 include a timestamp, process ID, ANSI styling and source location inside the

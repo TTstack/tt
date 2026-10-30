@@ -131,14 +131,14 @@ the Docker table; the managed `nftables` NAT, outgoing-denial and isolation
 semantics are unchanged. Container workloads are unaffected either way, since
 Docker publishes them through its own chains.
 
-## Experimental FreeBSD
+## FreeBSD
 
 The deployment commands intentionally reject FreeBSD. Cross-build with
 `CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o tt-agent ./cmd/tt-agent`, copy
 binaries and start services manually with private data directories and the same
 shared `TT_API_KEY`. Prepare `/home/ttstack/run`, authorized PF/networking and
-eligible bhyve/Jail prerequisites first. These engines remain experimental;
-consult the [validation records](validation/) for actual native coverage.
+eligible bhyve/Jail prerequisites first. Native validation is FreeBSD 15.x only;
+consult the [validation records](validation/) for the tested matrix.
 
 ## Upgrade and offline v5 conversion
 

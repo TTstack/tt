@@ -73,7 +73,7 @@ measurement. The language choice is driven by engineering properties:
 
 2. **Cross-compilation for the fleet.** `GOOS=linux|freebsd GOARCH=amd64 go
    build` produces any target from any machine with no cross toolchain. This
-   port keeps the experimental FreeBSD bhyve/jail paths, and the Rust release
+   port keeps the FreeBSD bhyve/jail paths, validated on FreeBSD 15.x only, and the Rust release
    needs a separate target toolchain and libc-aware builds for the same reach —
    its deployment guide has to warn that a glibc binary cannot run on a musl
    host.
@@ -258,8 +258,8 @@ all clean, and its own commit. Details and acceptance criteria per phase are in
 5. **Live checks (authorized hosts only).** Phase 7 checks QEMU and Docker in both
    controller/agent pairings, plus Firecracker/config-disk/jailer and eligible
    backup backends. Each operation is tested only on engines that support it;
-   Docker is not a resize/backup substitute. FreeBSD compiles in CI and remains
-   experimental; native cases and unavailable prerequisites are reported explicitly.
+   Docker is not a resize/backup substitute. FreeBSD compiles in CI. Native
+   validation is FreeBSD 15.x only; unavailable prerequisites are reported explicitly.
    Fixed bridge, firewall and run paths require host/namespace isolation as well
    as distinct data directories. Tests are bounded, cleaned up and never disturb
    pre-existing workloads. See the roadmap for the acceptance matrix.
@@ -273,7 +273,7 @@ all clean, and its own commit. Details and acceptance criteria per phase are in
 | SQLite driver differences (`modernc.org/sqlite`) | Use identical pragmas; verify with Rust-created fixture databases; single-writer discipline |
 | Rust `error`-string → HTTP status coupling | Centralize mapping in one table mirrored from `core/src/backup.rs`; tests enumerate every prefix |
 | Scope creep into "improvements" | Non-goals in §2; compatibility document is the review checklist |
-| FreeBSD paths untestable on Linux hosts | Same runtime gating as Rust; code review against source; document as experimental |
+| FreeBSD paths untestable on Linux hosts | Same runtime gating as Rust; code review against source; native validation is FreeBSD 15.x only |
 
 ## 11. Definition of done
 

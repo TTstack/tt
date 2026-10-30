@@ -35,7 +35,7 @@ var recipes = []imageRecipe{
 	{"alpine-cloud", "qemu", "Alpine Linux 3.21.7 NoCloud image (qcow2)"},
 	{"debian-cloud", "qemu", "Debian 13 generic cloud image (qcow2, daily/latest)"},
 	{"ubuntu-cloud", "qemu", "Ubuntu 24.04 cloud image (qcow2, current)"},
-	{"freebsd-base", "jail", "Experimental FreeBSD base archive (derived from host release)"},
+	{"freebsd-base", "jail", "FreeBSD base archive (derived from host release)"},
 }
 
 const fcKernelURL = "https://s3.amazonaws.com/spec.ccfc.min/img/quickstart_guide/x86_64/kernels/vmlinux.bin"

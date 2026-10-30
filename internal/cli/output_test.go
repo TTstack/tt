@@ -25,8 +25,17 @@ type recordedRequest struct {
 	IfMatch        *string `json:"if_match"`
 }
 
+// dropExperimentalLabel removes the Rust "(experimental)" platform suffix while
+// keeping the %-23s column width, so the rest of the captured row stays exact.
+func dropExperimentalLabel(text string) string {
+	const marker = " (experimental)"
+	return strings.ReplaceAll(text, marker, strings.Repeat(" ", len(marker)))
+}
+
 // These outputs and request sequences were captured from the pinned native Rust
 // binary. Only loopback HTTP is used; no command can reach a deployment host.
+// The capabilities table and freebsd-base recipe text omit the Rust experimental
+// label, as documented in compatibility §7.
 func TestRustCLIOutputAndRequests(t *testing.T) {
 	data, err := os.ReadFile("testdata/output-rust.json")
 	if err != nil {
@@ -148,8 +157,20 @@ func TestRustCLIOutputAndRequests(t *testing.T) {
 			if code := app.run(append([]string{"--server", peer.URL}, tc.Args...)); code != 0 {
 				t.Fatalf("exit %d: %s", code, stderr.String())
 			}
-			if stdout.String() != tc.Stdout {
-				t.Errorf("stdout differs\ngot:\n%s\nwant:\n%s", stdout.String(), tc.Stdout)
+			gotOut, wantOut := stdout.String(), tc.Stdout
+			if reflect.DeepEqual(tc.Args, []string{"capabilities"}) {
+				const note = "FreeBSD bhyve and Jail are validated only on FreeBSD 15.x.\n"
+				if !strings.HasSuffix(gotOut, note) {
+					t.Errorf("missing FreeBSD 15.x validation note:\n%s", gotOut)
+				}
+				gotOut = strings.TrimSuffix(gotOut, note)
+				wantOut = dropExperimentalLabel(wantOut)
+			}
+			if reflect.DeepEqual(tc.Args, []string{"image", "recipes"}) {
+				wantOut = strings.ReplaceAll(wantOut, "Experimental FreeBSD base archive (derived from host release)", "FreeBSD base archive (derived from host release)")
+			}
+			if gotOut != wantOut {
+				t.Errorf("stdout differs\ngot:\n%s\nwant:\n%s", gotOut, wantOut)
 			}
 			if stderr.String() != tc.Stderr {
 				t.Errorf("stderr differs\ngot:\n%s\nwant:\n%s", stderr.String(), tc.Stderr)

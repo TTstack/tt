@@ -112,7 +112,7 @@ func (f Feature) Limit(e model.Engine, s model.Storage) string {
 			return "Requires jailer and delegated cgroup controllers; zvol needs compatible agent support"
 		}
 		if e == model.Bhyve || e == model.Jail {
-			return "Experimental FreeBSD; manual host and guest setup required"
+			return "Validated only on FreeBSD 15.x; manual host and guest setup required"
 		}
 		return "Process readiness is not application readiness"
 	default:
@@ -156,12 +156,11 @@ func Matrix() model.Matrix {
 	}
 	for _, e := range Engines {
 		for _, s := range Storage {
-			experimental := e == model.Bhyve || e == model.Jail
 			platform := "linux"
-			if experimental {
+			if e == model.Bhyve || e == model.Jail {
 				platform = "freebsd"
 			}
-			entry := model.Combination{Engine: e, Storage: s, Platform: platform, Experimental: experimental}
+			entry := model.Combination{Engine: e, Storage: s, Platform: platform, Experimental: false}
 			for _, f := range All {
 				entry.Features = append(entry.Features, model.DesignSupport{Tag: f.Tag(), Supported: f.Supported(e, s), Limit: f.Limit(e, s)})
 			}

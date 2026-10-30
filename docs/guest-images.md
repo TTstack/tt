@@ -12,7 +12,7 @@ current agent catalogs. Prepare the image directory before QEMU image creation.
 | `alpine-cloud` | Alpine 3.21.7 NoCloud qcow2, pinned SHA-512 |
 | `debian-cloud`, `ubuntu-cloud` | Latest Debian 13 / current Ubuntu 24.04 image, verified against upstream SHA-512 / SHA-256 manifests |
 | `fc-alpine` | Pinned kernel and Alpine userspace, 128 MiB ext4 root; boot/network check only, no SSH |
-| `freebsd-base` | Experimental Jail root from the FreeBSD host's exact RELEASE series |
+| `freebsd-base` | Jail root from the host's exact RELEASE series; native validation is recorded on FreeBSD 15.1 |
 
 ```sh
 sudo mkdir -p /home/ttstack/images
@@ -138,7 +138,7 @@ also restricts source identity, guest peers, guest-initiated host/private/link-l
 access and IPv6, while allowing public IPv4 egress and replies to inbound traffic.
 Neither policy is implemented by Docker/Podman; bhyve has egress denial only.
 
-Experimental FreeBSD hosts require a prepared bridge and enabled PF with
+FreeBSD hosts, validated on FreeBSD 15.x only, require a prepared bridge and enabled PF with
 `rdr-anchor "ttstack/*"` and non-quick `anchor "ttstack/*"` hooks; outbound NAT is
 provisioned separately. Without that NAT, guests whose base contains a public
 `resolv.conf` cannot resolve, and their sshd spends tens of seconds in resolver

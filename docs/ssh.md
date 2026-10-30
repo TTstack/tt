@@ -41,7 +41,7 @@ persists ingress and port allocation settings and refuses changes while VM
 records remain. In test fleets, the outer namespace must itself be task-owned;
 never point tests at the shared host namespace.
 
-Experimental FreeBSD Jail supports only root public-key injection with default
+FreeBSD Jail, validated on FreeBSD 15.x only, supports only root public-key injection with default
 root/no-sudo options and has no managed SSH response metadata. Bhyve has no key
 injection. Docker/Podman has no managed SSH bootstrap.
 

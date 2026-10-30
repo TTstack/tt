@@ -79,8 +79,9 @@ Cross-cutting Go checks apply when relevant:
   trigger and consequence. Test-helper panics and explicit unsupported-platform
   gates are not automatically defects.
 - Check Go build constraints and normal callers before claiming dead code or a
-  missing implementation. Do not flag FreeBSD's documented experimental limits
+  missing implementation. Do not flag FreeBSD 15.x's documented limits
   as newly missing features; do report regressions in its supported paths.
+  Native FreeBSD validation is FreeBSD 15.x only.
 - Tests using mocks/fakes establish the contract they exercise. They do not
   establish native engine, strict reflink, ZFS or guest SSH acceptance. Historical
   reports prove their recorded revision/matrix, not current HEAD.

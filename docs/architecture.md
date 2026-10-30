@@ -171,9 +171,9 @@ Per engine (details mirrored from the Rust implementation):
 - **Docker/Podman**: `run -d --name tt-<id> --cpus … --memory … --memory-swap …
   -p host:guest …`; state via `inspect -f {{.State.Status}}`; the runtime binding
   is persisted on first use and never switches automatically.
-- **bhyve** (FreeBSD, experimental): `bhyveload` + `bhyve`, `/dev/vmm/<id>`,
+- **bhyve** (FreeBSD 15.x): `bhyveload` + `bhyve`, `/dev/vmm/<id>`,
   process identity from `ps`, TAP device recorded in `RUN_DIR`.
-- **jail** (FreeBSD, experimental): `jail -f <conf> -c`, shared IP stack with a
+- **jail** (FreeBSD 15.x): `jail -f <conf> -c`, shared IP stack with a
   `tt0` alias, devfs mount handling, root-key injection; no SSH bootstrap.
 
 ## 5. Storage

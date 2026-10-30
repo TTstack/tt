@@ -10,8 +10,8 @@ still requires suitable guest images, privileges and current runtime state.
 | QEMU | file, zvol | Managed SSH | No | Both | Both; guest filesystem growth is separate | Qualified reflink or zvol |
 | Firecracker | file, zvol | Managed SSH on a prepared image | Readonly drive | Both | Both; unpartitioned ext4 growth | Qualified reflink or zvol |
 | Docker/Podman | Runtime's own store | No | No | Neither | Neither | No |
-| bhyve (experimental FreeBSD) | file, zvol | No | No | Egress denial only | Image-sized disk; no resource-update API | Zvol only |
-| Jail (experimental FreeBSD) | file only | Root keys only | No | Neither | Neither | No |
+| bhyve (FreeBSD 15.x) | file, zvol | No | No | Egress denial only | Image-sized disk; no resource-update API | Zvol only |
+| Jail (FreeBSD 15.x) | file only | Root keys only | No | Neither | Neither | No |
 
 All eligible engine/storage combinations support workload lifecycle and TCP
 publication. Docker's own image store is independent of the agent's VM storage

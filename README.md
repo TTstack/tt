@@ -9,8 +9,9 @@ have a lifetime, and can be stopped, restarted, resized and deleted.
 release. The CLI, deployment, image recipes, agent, controller and offline
 converter are functional. Native testing covers mixed Go/Rust services, real
 QEMU/Firecracker file and zvol workflows, Docker, isolated systemd deployment,
-and experimental FreeBSD Jail/bhyve. See the [Linux](docs/validation/linux-native-2026-09-30.md)
-and [FreeBSD](docs/validation/freebsd-native-2026-09-30.md) evidence for the tested
+and FreeBSD Jail/bhyve. Recorded native testing is FreeBSD 15.1 only.
+See the [Linux](docs/validation/linux-native-2026-09-30.md)
+and [FreeBSD](docs/validation/freebsd-15-2026-10-30.md) evidence for the tested
 matrix and limits, and [feature coverage](docs/validation/feature-coverage.md).
 
 Optional compute extensions add durable command receipts, persistent volumes,
@@ -32,8 +33,8 @@ engineering properties rather than raw speed:
 
 - fast builds and a closed, pure-Go dependency set make frequent
   rebuild-and-redeploy across a fleet cheap;
-- cross-compilation from one machine covers every target (including the
-  experimental FreeBSD hosts) without a cross toolchain;
+- cross-compilation from one machine covers every target (including
+  FreeBSD hosts) without a cross toolchain;
 - statically linked single binaries deploy by file copy, with no libc or
   shared-library coupling;
 - the standard library already covers the HTTP server and client, JSON, SQL,
@@ -75,8 +76,8 @@ tt CLI / Browser → HTTP → tt-ctl → HTTP → tt-agent (one per host)
 | `tt-agent` | Host-local VM/container lifecycle, storage and networking |
 
 Linux x86_64 is the supported host platform with QEMU/KVM, Firecracker and
-Docker/Podman. The experimental FreeBSD bhyve/Jail paths use the same native-host
-gates as Rust, with manual setup and limited validation.
+Docker/Podman. FreeBSD bhyve/Jail uses the same native-host gates, with manual
+setup. Recorded native testing is FreeBSD 15.1 only.
 
 ## Building
 

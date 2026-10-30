@@ -14,8 +14,21 @@ func TestMatrixPreservesDistinctGuestAndNetworkContracts(t *testing.T) {
 		t.Fatal(m)
 	}
 	for _, entry := range m.Combinations {
-		if len(entry.Features) != len(All) || entry.Experimental != (entry.Engine == model.Bhyve || entry.Engine == model.Jail) {
+		platform := "linux"
+		if entry.Engine == model.Bhyve || entry.Engine == model.Jail {
+			platform = "freebsd"
+		}
+		if len(entry.Features) != len(All) || entry.Experimental || entry.Platform != platform {
 			t.Fatal(entry)
+		}
+		if entry.Engine == model.Bhyve || entry.Engine == model.Jail {
+			if got := Run.Limit(entry.Engine, entry.Storage); entry.Engine == model.Jail && entry.Storage == model.Zvol {
+				if got != "Jail requires file storage" {
+					t.Fatal(got)
+				}
+			} else if got != "Validated only on FreeBSD 15.x; manual host and guest setup required" {
+				t.Fatal(got)
+			}
 		}
 	}
 	for _, c := range []struct {
@@ -81,7 +94,7 @@ func TestScopedCapabilitiesNeverUnionAcrossEngines(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-func TestExperimentalFreeBSDOptionsKeepTheirEngineLimits(t *testing.T) {
+func TestFreeBSDOptionsKeepTheirEngineLimits(t *testing.T) {
 	keys := []string{"ssh-ed25519 AAAA user"}
 	disk := uint32(512)
 	if err := ValidateVMOptions(model.Jail, nil, false, keys, []uint16{22}); err != nil {

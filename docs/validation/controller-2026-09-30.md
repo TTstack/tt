@@ -27,8 +27,12 @@ with Cargo.lock SHA-256
   headers, body extraction and controller-specific response shapes. Controller
   environment actions return `data:null`; host removal and agent empty actions
   omit `data`. Business diagnostic decoration is normalized as documented.
-- The embedded dashboard matches the pinned Rust source exactly: SHA-256
+- The embedded dashboard matched the pinned Rust source exactly when this
+  record was written: SHA-256
   `d88d6227bb3cab8988843bc0da098f92303043b053295b4b1c9c5090b319fb96`.
+  The current tree differs only in the FreeBSD engine option labels. That
+  deviation and the current digest `c8fc3bdc56d800a2630b3f0f8da52c7e622f285825329c20f202e3abab85366f`
+  are recorded in compatibility §7.
 - Mock-agent workflows exercise lost creation/resize/restore responses, exact
   replay, rejection versus unknown intent, retained absent VMs, partial deletion
   and expiry retry, stale expiry of reused names, capability withdrawal and
@@ -70,5 +74,5 @@ workstation.
 
 The controller and agent are implemented. CLI/deployment/image workflows and the
 bounded real-guest matrix remain phases 6–7. Neither authorized Linux test host
-has been contacted. FreeBSD remains experimental; synthetic service interoperability
+has been contacted. This record covers FreeBSD 15.1 only; synthetic service interoperability
 is not evidence of real bhyve/Jail boot, SSH readiness or Linux kernel behavior.

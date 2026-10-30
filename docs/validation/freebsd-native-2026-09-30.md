@@ -80,7 +80,7 @@ remained disabled and SSH remained reachable. Build tools, image caches and
 private task logs remain under the task directory for reproduction. No OOM or
 host reboot occurred.
 
-FreeBSD remains experimental. This validates the tested Jail/bhyve lifecycle and
+This record covers FreeBSD 15.1. The project is validated on FreeBSD 15.x only. This validates the tested Jail/bhyve lifecycle and
 bhyve zvol recovery combinations; it does not imply Linux engine coverage,
 FreeBSD file reflink support, Jail disk backup, bhyve SSH injection or guest
 resource enforcement beyond the documented engine contract.

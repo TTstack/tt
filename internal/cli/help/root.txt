@@ -4,7 +4,7 @@ Usage: tt [OPTIONS] <COMMAND>
 
 Commands:
   config        Configure the controller address and optional API key
-  capabilities  Show technical engine/storage support, including experimental platforms
+  capabilities  Show technical engine/storage support, including FreeBSD 15.x platforms
   status        Show fleet-wide status
   host          Manage physical hosts
   env           Manage environments

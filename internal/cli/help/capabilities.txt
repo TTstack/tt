@@ -1,4 +1,4 @@
-Show technical engine/storage support, including experimental platforms
+Show technical engine/storage support, including FreeBSD 15.x platforms
 
 Usage: tt capabilities [OPTIONS]
 

@@ -134,4 +134,4 @@ After empty inventory and no live VMMs are confirmed, detach and destroy only
 `zroot/tt-go-port-6426-native`, remove only the test jail, and remove the empty
 owned `/home/ttstack/run` parent directories. Verify host PF remains disabled,
 the original gateway jail remains active and management SSH still works.
-FreeBSD engine support remains experimental.
+Native FreeBSD validation is FreeBSD 15.x only.

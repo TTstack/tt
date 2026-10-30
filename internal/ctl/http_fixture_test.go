@@ -67,7 +67,9 @@ func TestRustControllerHTTPFixtures(t *testing.T) {
 }
 func TestDashboardMatchesPinnedRustAsset(t *testing.T) {
 	digest := fmt.Sprintf("%x", sha256.Sum256(dashboard))
-	if digest != "d88d6227bb3cab8988843bc0da098f92303043b053295b4b1c9c5090b319fb96" {
-		t.Fatal("dashboard differs from pinned Rust source", digest)
+	// Pinned Rust asset was d88d6227bb3cab8988843bc0da098f92303043b053295b4b1c9c5090b319fb96.
+	// FreeBSD engine labels now say FreeBSD 15.x. See compatibility §7.
+	if digest != "c8fc3bdc56d800a2630b3f0f8da52c7e622f285825329c20f202e3abab85366f" {
+		t.Fatal("dashboard differs from the FreeBSD 15.x label revision", digest)
 	}
 }

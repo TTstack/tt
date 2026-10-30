@@ -288,7 +288,7 @@ func (d *deployer) restartService(ctx context.Context, name string) error {
 func (d *deployer) local(ctx context.Context, role, release string) error {
 	info, err := os.Stat(d.path("/run/systemd/system"))
 	if d.platform != "linux" || err != nil || !info.IsDir() {
-		return fmt.Errorf("local deploy requires Linux with systemd; use distributed deploy for Linux with OpenRC. Experimental FreeBSD hosts require manual setup")
+		return fmt.Errorf("local deploy requires Linux with systemd; use distributed deploy for Linux with OpenRC. FreeBSD hosts require manual setup and are validated only on FreeBSD 15.x")
 	}
 	uid := uint64(1000)
 	if content, err := readUTF8(d.path("/proc/self/status"), "read status"); err == nil {

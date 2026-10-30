@@ -59,6 +59,7 @@ preserve the observable contract.
 - [Controller parity](validation/controller-2026-09-30.md): scheduler, state interchange and service combinations.
 - [CLI parity](validation/cli-2026-09-30.md): output/request goldens, deployment and recipe tests.
 - [Feature coverage](validation/feature-coverage.md): every pinned README core behavior mapped to implementation/tests.
+- [FreeBSD 15.x revalidation, 2026-10-30](validation/freebsd-15-2026-10-30.md): Jail, bhyve file and bhyve zvol on FreeBSD 15.1, with a bounded Linux QEMU check and macOS CLI/controller smoke.
 - [Native FreeBSD acceptance](validation/freebsd-native-2026-09-30.md): real Jail/bhyve SSH, live swaps and zvol restore/replay.
 - [Native Linux acceptance](validation/linux-native-2026-09-30.md): QEMU/Firecracker file/zvol, mixed fleet/networking, Docker and isolated systemd deployment.
 

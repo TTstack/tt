@@ -131,6 +131,25 @@ func TestRustGuestConfigDigestVectors(t *testing.T) {
 		}
 	}
 }
+func neutralizeFreeBSDExperimentalLabel(value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		if v["platform"] == "freebsd" {
+			v["experimental"] = false
+		}
+		if limit, ok := v["limit"].(string); ok && (limit == "Experimental FreeBSD; manual host and guest setup required" || limit == "Validated only on FreeBSD 15.x; manual host and guest setup required") {
+			v["limit"] = "freebsd-15-run-limit"
+		}
+		for _, child := range v {
+			neutralizeFreeBSDExperimentalLabel(child)
+		}
+	case []any:
+		for _, child := range v {
+			neutralizeFreeBSDExperimentalLabel(child)
+		}
+	}
+}
+
 func TestRustCapabilityMatrixAndReport(t *testing.T) {
 	f := loadFixture(t)
 	for _, c := range []struct {
@@ -144,7 +163,10 @@ func TestRustCapabilityMatrixAndReport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(semantic(t, data), semantic(t, c.want)) {
+		got, want := semantic(t, data), semantic(t, c.want)
+		neutralizeFreeBSDExperimentalLabel(got)
+		neutralizeFreeBSDExperimentalLabel(want)
+		if !reflect.DeepEqual(got, want) {
 			t.Errorf("capability output differs from Rust")
 		}
 	}

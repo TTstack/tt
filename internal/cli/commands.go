@@ -127,9 +127,6 @@ func (a *application) networkCommand(c *Client, p parsed) error {
 		a.out("%-13s %-7s %-23s CAPABILITIES", "ENGINE", "STORAGE", "PLATFORM")
 		for _, entry := range matrix.Combinations {
 			platform := entry.Platform
-			if entry.Experimental {
-				platform += " (experimental)"
-			}
 			tags := []string{}
 			for _, feature := range entry.Features {
 				if feature.Supported {
@@ -144,6 +141,7 @@ func (a *application) networkCommand(c *Client, p parsed) error {
 			a.out("%s %s %-23s %s", entry.Engine, entry.Storage, platform, enabled)
 		}
 		a.out("Host prerequisites and VM eligibility are checked separately. Use 'tt host show ID' for the current host report.")
+		a.out("FreeBSD bhyve and Jail are validated only on FreeBSD 15.x.")
 	case "host add":
 		host, err := fetch[model.Host](a.ctx, c, "POST", "/api/hosts", api.RegisterHostReq{Addr: p.argument})
 		if err != nil {

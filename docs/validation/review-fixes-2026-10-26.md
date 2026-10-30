@@ -61,5 +61,5 @@ remained reachable. No existing service or guest was changed.
 
 These were bounded functional checks. The resize regression was exercised with
 real ext4 storage and a fake stopped engine; no Firecracker VM boot or live zvol
-resize was performed. FreeBSD engines remain experimental. Existing broad
+resize was performed. This record covers FreeBSD 15.1 only. Existing broad
 acceptance evidence remains in the native validation reports.

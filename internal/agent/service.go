@@ -9,7 +9,6 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sync"
 	"time"
@@ -29,9 +28,6 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "Invalid API key: %v\n", err)
 			return 1
 		}
-	}
-	if runtime.GOOS == "freebsd" {
-		fmt.Fprintln(stderr, "WARNING: FreeBSD support is experimental and outside the primary validation scope")
 	}
 	if cfg.AuthorityFile != "" && key == nil {
 		fmt.Fprintln(stderr, "receiver authority requires bearer authentication")

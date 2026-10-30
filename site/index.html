@@ -79,6 +79,7 @@
               <dt>Supported hosts</dt>
               <dd>
                 Linux x86_64, with QEMU/KVM, Firecracker and Docker/Podman.
+                FreeBSD amd64 bhyve and Jail. Recorded native testing is FreeBSD 15.1 only.
               </dd>
             </div>
             <div>
@@ -89,7 +90,7 @@
               </dd>
             </div>
           </dl>
-          <p><a href="#freebsd">Experimental FreeBSD in mixed fleets →</a></p>
+          <p><a href="#freebsd">FreeBSD 15.1 in mixed fleets →</a></p>
         </aside>
       </section>
 
@@ -257,7 +258,7 @@ tt env delete demo</code></pre>
         </div>
         <aside id="freebsd" class="callout" aria-labelledby="freebsd-title">
           <div>
-            <p class="eyebrow">Experimental</p>
+            <p class="eyebrow">FreeBSD 15.1</p>
             <h3 id="freebsd-title">FreeBSD bhyve and Jail</h3>
           </div>
           <div>
@@ -265,12 +266,12 @@ tt env delete demo</code></pre>
               Mixed fleets can use prepared bhyve raw disks and copied Jail
               roots. bhyve supports stopped zvol recovery points; Jail supports
               root public-key injection. Native binaries and manual host/network
-              setup are required. Primary CI and automated deployment remain
-              Linux-only.
+              setup are required. Recorded native testing is FreeBSD 15.1 only.
+              Primary CI and automated deployment remain Linux-only.
             </p>
             <a
               class="more"
-              href="https://github.com/TTstack/tt/blob/main/docs/deployment.md#experimental-freebsd"
+              href="https://github.com/TTstack/tt/blob/main/docs/deployment.md#freebsd"
               >FreeBSD requirements and tested scope →</a
             >
           </div>

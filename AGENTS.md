@@ -74,8 +74,8 @@ contracts, and label source-dependent parity conclusions unverified.
 Functional VM testing requires an authorized host and is bounded: no stress
 testing, keep well under half of host CPU/memory, never disturb existing guests,
 and clean up only what the task created. Administrative keys stay out of logs and
-reports. FreeBSD engines are experimental; state their limits when reporting
-results.
+reports. Native FreeBSD validation is FreeBSD 15.x only; state that limit
+when reporting results.
 
 Existing validation reports and harness paths are evidence, not authorization
 to reuse a host or mutate its resources. Follow the isolation requirements in

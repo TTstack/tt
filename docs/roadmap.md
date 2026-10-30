@@ -262,7 +262,8 @@ Acceptance
   together with checksum/publication tests. Do not add a public `--dry-run` option:
   the reference CLI has none.
 - Linux systemd/deploy scripts are checked locally using fakes before Linux live
-  use. Minimum-toolchain builds and experimental FreeBSD binaries still pass.
+  use. Minimum-toolchain builds and FreeBSD binaries still pass. Native
+  FreeBSD validation is FreeBSD 15.x only.
 
 ## Phase 7 — Compatibility acceptance
 

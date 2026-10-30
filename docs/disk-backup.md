@@ -10,7 +10,7 @@ separate disaster-recovery copy.
 |---|---|
 | QEMU or Firecracker, zvol | Owned ZFS snapshot of the runtime root volume |
 | QEMU or Firecracker, file | Strict Linux filesystem reflink of an eligible standalone root disk |
-| Experimental bhyve, zvol | Owned ZFS snapshot |
+| bhyve, zvol (FreeBSD 15.x) | Owned ZFS snapshot |
 | bhyve file, Jail, Docker/Podman | Unsupported |
 
 There is no full-copy fallback. Source and reflink backups must share an eligible

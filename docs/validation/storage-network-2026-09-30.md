@@ -50,5 +50,5 @@ The shared workstation ran only lightweight code checks and fake host commands.
 The Linux test hosts were not contacted. No root firewall, route, gateway jail
 configuration, existing service or guest was changed. Native Linux nftables/TUN,
 strict reflink success, Firecracker zvol boot and all engine lifecycles still need
-their later native acceptance tests. FreeBSD remains experimental; these storage
+their later native acceptance tests. This record covers FreeBSD 15.1 only; these storage
 results are not evidence of a working VM or application.
