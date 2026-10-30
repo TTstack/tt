@@ -73,7 +73,7 @@ func TestQemuManagedSSHSeedUsesSerdeQuoting(t *testing.T) {
 	}
 }
 func TestQemuHMPMonitorHandlesSplitPromptsAndPause(t *testing.T) {
-	dir, err := os.MkdirTemp("", "tthmp-")
+	dir, err := os.MkdirTemp("/tmp", "tthmp-")
 	if err != nil {
 		t.Fatal(err)
 	}

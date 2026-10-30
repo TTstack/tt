@@ -86,8 +86,9 @@ func TestRejectsSymlinkedRegularMembersAndCharacterDevices(t *testing.T) {
 	}
 }
 func TestSandboxPreparationRecordsOwnershipAndRetainsDisk(t *testing.T) {
-	// A deliberately short temporary path respects the real Unix socket limit.
-	dir, err := os.MkdirTemp("", "ttfc-")
+	// Use a short root even when the service TMPDIR is a long data-disk path.
+	// The real Unix socket limit still applies to the production runtime.
+	dir, err := os.MkdirTemp("/tmp", "ttfc-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +187,7 @@ func TestSandboxMetadataIsStrictAboutRequiredFields(t *testing.T) {
 	}
 }
 func TestFirecrackerUnixAPIStateResumeAndFailures(t *testing.T) {
-	dir, err := os.MkdirTemp("", "ttapi-")
+	dir, err := os.MkdirTemp("/tmp", "ttapi-")
 	if err != nil {
 		t.Fatal(err)
 	}
