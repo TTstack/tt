@@ -321,6 +321,7 @@ at the API and filesystem boundary.
 
 | Area | Rust | Go | Why |
 |---|---|---|---|
+| Optional VM stop grace | fixed per-engine defaults | defaults preserved; `--stop-grace` accepts -1..300 seconds for Linux VMs | explicitly authorized operator control; zero requests immediate force |
 | Downloads (image recipes, deployment helpers) | `curl` | Go HTTP client | fewer host prerequisites; same URLs, digests, atomically published files |
 | Firecracker API calls | `curl --unix-socket` | HTTP client over the Unix socket | same requests, same 5 s timeout |
 | CLI argument parsing | clap | explicit subcommand tree | dependency policy; pinned help and output fixtures, equivalent validation and exit codes |

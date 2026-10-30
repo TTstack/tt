@@ -5,6 +5,8 @@ Usage: tt-agent [OPTIONS]
 Options:
       --enable-disk-backup
           Admit explicit lightweight disk backup creation/refresh (default: disabled)
+      --stop-grace <STOP_GRACE>
+          Linux VM graceful-stop seconds: -1 keeps engine defaults, 0 forces immediately, 1–300 overrides [default: -1]
       --container-runtime <CONTAINER_RUNTIME>
           Container runtime for this inventory; persisted after the first selection [env: TT_CONTAINER_RUNTIME=]
       --ssh-public-address <SSH_PUBLIC_ADDRESS>

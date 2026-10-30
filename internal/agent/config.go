@@ -31,6 +31,7 @@ type Config struct {
 	Listen, ImageDir, RuntimeDir, DataDir, Storage                        string
 	CPUTotal, MemTotal, DiskTotal                                         uint
 	HostID, APIKey                                                        string
+	StopGrace                                                             int
 	present                                                               map[string]bool
 }
 
@@ -38,6 +39,7 @@ func parseConfig(args []string, stdout, stderr io.Writer) (Config, bool, int) {
 	var cfg Config
 	fs := flag.NewFlagSet("tt-agent", flag.ContinueOnError)
 	fs.BoolVar(&cfg.EnableDiskBackup, "enable-disk-backup", false, "Enable explicit disk backup admission")
+	fs.IntVar(&cfg.StopGrace, "stop-grace", -1, "Graceful-stop grace seconds: -1 = engine defaults (QEMU 10, Firecracker 30), 0 = force kill immediately")
 	fs.StringVar(&cfg.ContainerRuntime, "container-runtime", os.Getenv("TT_CONTAINER_RUNTIME"), "Container runtime for this inventory")
 	fs.StringVar(&cfg.SSHPublicAddress, "ssh-public-address", "", "Client-reachable IPv4 address")
 	fs.StringVar(&cfg.SSHIngressNetNS, "ssh-ingress-netns", "", "Outer network namespace")
@@ -103,6 +105,10 @@ func parseConfig(args []string, stdout, stderr io.Writer) (Config, bool, int) {
 	}
 	if cfg.PortStart > math.MaxUint16 || cfg.PortEnd > math.MaxUint16 || cfg.CPUTotal > math.MaxUint32 || cfg.MemTotal > math.MaxUint32 || cfg.DiskTotal > math.MaxUint32 {
 		fmt.Fprintln(stderr, "error: numeric argument out of range")
+		return cfg, false, 2
+	}
+	if cfg.StopGrace < -1 || cfg.StopGrace > 300 {
+		fmt.Fprintln(stderr, "error: --stop-grace must be within -1..300 seconds")
 		return cfg, false, 2
 	}
 	for _, field := range []struct{ name, value string }{{"ssh-public-address", cfg.SSHPublicAddress}, {"ssh-ingress-target", cfg.SSHIngressTarget}} {

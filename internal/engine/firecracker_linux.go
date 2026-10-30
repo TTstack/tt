@@ -23,10 +23,19 @@ type Firecracker struct {
 	processes          processes
 	chown              func(string, int, int) error
 	prepareTap         func(context.Context, string, uint32) error
+	// stopGrace bounds the graceful CtrlAltDel wait; 0 = force kill
+	// immediately. Defaults to 30 s (stopGraceSeconds override applies).
+	stopGrace time.Duration
 }
 
+const fcDefaultStopGrace = 30 * time.Second
+
 func newFirecracker() *Firecracker {
-	return &Firecracker{runDir: model.RunDir, cgroupRoot: "/sys/fs/cgroup", processes: hostProcesses(), chown: os.Chown, prepareTap: netcfg.New().PrepareJailedTap}
+	grace := fcDefaultStopGrace
+	if stopGraceSeconds >= 0 {
+		grace = time.Duration(stopGraceSeconds) * time.Second
+	}
+	return &Firecracker{runDir: model.RunDir, cgroupRoot: "/sys/fs/cgroup", processes: hostProcesses(), chown: os.Chown, prepareTap: netcfg.New().PrepareJailedTap, stopGrace: grace}
 }
 func (*Firecracker) Name() string { return "firecracker" }
 func firecrackerConfiguration(vm *model.Vm, mac string) map[string]any {
@@ -230,17 +239,14 @@ func (f *Firecracker) Stop(ctx context.Context, vm *model.Vm) error {
 			return f.processes.terminate(ctx, pid, marker)
 		}
 	}
-	if runtime.GOARCH == "amd64" {
+	if runtime.GOARCH == "amd64" && f.stopGrace > 0 {
 		body := `{"action_type":"SendCtrlAltDel"}`
 		if _, err := firecrackerRequest(ctx, socket, "PUT", "/actions", &body); err == nil {
-			deadline := time.Now().Add(30 * time.Second)
-			for {
+			deadline := time.Now().Add(f.stopGrace)
+			for time.Now().Before(deadline) {
 				match, err := f.processes.matches(pid, marker)
 				if err != nil || !match {
 					return err
-				}
-				if !time.Now().Before(deadline) {
-					break
 				}
 				if err := sleepContext(ctx, 100*time.Millisecond); err != nil {
 					return err

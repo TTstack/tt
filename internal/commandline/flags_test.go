@@ -40,3 +40,26 @@ func TestResourceAndPortFlagsUseDecimalRustIntegers(t *testing.T) {
 		}
 	}
 }
+
+func TestSignedIntegerFlagsAllowNegativeValuesWithoutAcceptingOptionsAsValues(t *testing.T) {
+	for _, tc := range []struct {
+		args  []string
+		valid bool
+	}{
+		{[]string{"--grace", "-1"}, true},
+		{[]string{"--grace=-1"}, true},
+		{[]string{"--grace", "--help"}, false},
+		{[]string{"--grace", "-invalid"}, false},
+		{[]string{"--data-dir", "-1"}, false},
+		{[]string{"--cpu", "-1"}, false},
+	} {
+		fs := flag.NewFlagSet("fixture", flag.ContinueOnError)
+		fs.Int("grace", -1, "")
+		fs.String("data-dir", "", "")
+		var cpu uint
+		UintVar(fs, &cpu, "cpu", 0, 32, "")
+		if err := CheckFlags(fs, tc.args); (err == nil) != tc.valid {
+			t.Fatal(tc.args, err)
+		}
+	}
+}

@@ -100,6 +100,7 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Invalid agent network configuration: %v\n", err)
 		return 1
 	}
+	engine.SetStopGrace(cfg.StopGrace)
 	rt.ConfigureBackup(ctx, cfg.EnableDiskBackup)
 	server := newServer(rt, path)
 	if key != nil {

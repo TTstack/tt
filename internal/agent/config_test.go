@@ -60,3 +60,16 @@ func TestUpgradeCommandUsesOfflineConverter(t *testing.T) {
 		t.Fatal(code)
 	}
 }
+
+func TestStopGraceBoundsPreventDurationOverflowAndUnintendedForce(t *testing.T) {
+	for _, value := range []string{"-1", "0", "300"} {
+		if _, proceed, code := parseConfig([]string{"--stop-grace", value}, io.Discard, io.Discard); !proceed || code != 0 {
+			t.Fatal("valid stop grace refused", value, code)
+		}
+	}
+	for _, value := range []string{"-2", "301", "9223372036854775807"} {
+		if _, proceed, code := parseConfig([]string{"--stop-grace", value}, io.Discard, io.Discard); proceed || code != 2 {
+			t.Fatal("invalid grace could overflow into immediate force", value, code)
+		}
+	}
+}

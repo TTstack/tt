@@ -21,9 +21,20 @@ import (
 type Qemu struct {
 	runDir    string
 	processes processes
+	// stopGrace bounds the graceful powerdown wait; 0 = force kill
+	// immediately. Defaults to 10 s (stopGraceSeconds override applies).
+	stopGrace time.Duration
 }
 
-func newQemu() *Qemu                        { return &Qemu{runDir: model.RunDir, processes: hostProcesses()} }
+const qemuDefaultStopGrace = 10 * time.Second
+
+func newQemu() *Qemu {
+	grace := qemuDefaultStopGrace
+	if stopGraceSeconds >= 0 {
+		grace = time.Duration(stopGraceSeconds) * time.Second
+	}
+	return &Qemu{runDir: model.RunDir, processes: hostProcesses(), stopGrace: grace}
+}
 func (q *Qemu) Name() string                { return "qemu" }
 func (q *Qemu) pidPath(vm *model.Vm) string { return filepath.Join(q.runDir, "qemu-"+vm.ID+".pid") }
 func (q *Qemu) monitorPath(vm *model.Vm) string {
@@ -211,17 +222,20 @@ func (q *Qemu) Stop(ctx context.Context, vm *model.Vm) error {
 	if pid == 0 {
 		return nil
 	}
-	_, _ = q.monitor(ctx, vm, "system_powerdown")
-	for i := 0; i < 100; i++ {
-		match, err := q.processes.matches(pid, q.pidPath(vm))
-		if err != nil {
-			return err
-		}
-		if !match {
-			return nil
-		}
-		if err := sleepContext(ctx, 100*time.Millisecond); err != nil {
-			return err
+	if q.stopGrace > 0 {
+		_, _ = q.monitor(ctx, vm, "system_powerdown")
+		deadline := time.Now().Add(q.stopGrace)
+		for time.Now().Before(deadline) {
+			match, err := q.processes.matches(pid, q.pidPath(vm))
+			if err != nil {
+				return err
+			}
+			if !match {
+				return nil
+			}
+			if err := sleepContext(ctx, 100*time.Millisecond); err != nil {
+				return err
+			}
 		}
 	}
 	return q.processes.terminate(ctx, pid, q.pidPath(vm))
