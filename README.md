@@ -126,6 +126,7 @@ tt env stop demo && tt env start demo && tt env delete demo
 | [Rust → Go mapping](docs/mapping.md) | Where each Rust module lands in Go |
 | [Development](docs/development.md) | Build, test, lint, dependency policy |
 | [AI workflow](docs/ai-workflow.md) | Explicit Codex skills, review evidence, worktree safety and scoped validation |
+| [Project site](site/index.html) | Static landing page; GitHub Pages publishes `site/` |
 
 ## License
 

@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tt — Lightweight Private Cloud</title>
+    <meta
+      name="description"
+      content="Create and manage VMs and containers on your own hosts. tt is the Go implementation of TTstack: one controller, per-host agents and local SQLite state, with explicit lifecycle and recovery contracts."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="tt — Lightweight Private Cloud" />
+    <meta
+      property="og:description"
+      content="QEMU/KVM, Firecracker and Docker/Podman on Linux. One controller, per-host agents, retained disks and explicit recovery. Go implementation of TTstack."
+    />
+    <meta property="og:url" content="https://ttstack.github.io/tt/" />
+    <meta name="theme-color" content="#eef3fa" />
+    <link rel="icon" href="favicon.svg?v=3" type="image/svg+xml" />
+    <!-- Bump the asset query token when changing the corresponding cached file. -->
+    <link rel="stylesheet" href="style.css?v=5" />
+  </head>
+  <body id="top">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="bar">
+      <div class="wrap bar-inner">
+        <a class="brand" href="#top" aria-label="tt home"><span>TT</span>stack</a>
+        <nav class="nav" aria-label="Page sections">
+          <a href="#architecture">Architecture</a>
+          <a href="#usage">Usage</a>
+          <a href="#engines">Engines</a>
+          <a href="#lifecycle">Lifecycle</a>
+          <a href="#docs">Docs</a>
+          <a href="https://github.com/TTstack/tt">GitHub ↗</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="wrap" tabindex="-1">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">A lightweight private cloud</p>
+          <h1 id="hero-title">VMs and containers, on your own hosts.</h1>
+          <p class="lede">
+            tt gives developers and small teams one place to create, access,
+            stop, restart and delete environments across a small fleet. It is
+            the Go implementation of TTstack, with the same CLI, API and host
+            contracts.
+          </p>
+          <div class="cta">
+            <a
+              class="btn primary"
+              href="https://github.com/TTstack/tt#quick-start-single-linuxsystemd-host"
+              >Get started</a
+            >
+            <a class="btn" href="#architecture">How it works</a>
+          </div>
+          <p class="project-links">
+            <a href="https://github.com/TTstack/tt/actions/workflows/ci.yml"
+              >CI checks</a
+            >
+            <a href="https://github.com/TTstack/tt/blob/main/LICENSE"
+              >MIT license</a
+            >
+            <a href="https://github.com/TTstack/tt/blob/main/go.mod">Go 1.26+</a>
+          </p>
+        </div>
+        <aside class="overview" aria-label="Deployment at a glance">
+          <p class="eyebrow">A small stack</p>
+          <dl>
+            <div>
+              <dt>Control plane</dt>
+              <dd>
+                One controller, one agent per host. Local SQLite state in each
+                service.
+              </dd>
+            </div>
+            <div>
+              <dt>Supported hosts</dt>
+              <dd>
+                Linux x86_64, with QEMU/KVM, Firecracker and Docker/Podman.
+              </dd>
+            </div>
+            <div>
+              <dt>Your workflow</dt>
+              <dd>
+                CLI, REST API and web dashboard. Temporary or retained
+                environments.
+              </dd>
+            </div>
+          </dl>
+          <p><a href="#freebsd">Experimental FreeBSD in mixed fleets →</a></p>
+        </aside>
+      </section>
+
+      <section id="architecture" aria-labelledby="architecture-title">
+        <div class="section-heading">
+          <p class="eyebrow">Architecture</p>
+          <h2 id="architecture-title">Fleet coordination. Local execution.</h2>
+          <p>
+            The controller places workloads and coordinates environments. Each
+            host agent owns its engines, disks and networking.
+          </p>
+        </div>
+        <figure class="architecture">
+          <div class="architecture-flow">
+            <div class="node">
+              <h3>Clients</h3>
+              <p><code>tt</code> CLI<br />REST client<br />Browser dashboard</p>
+            </div>
+            <div class="connection">
+              <span>HTTP</span><span aria-hidden="true">→</span>
+            </div>
+            <div class="node node-controller">
+              <h3><code>tt-ctl</code></h3>
+              <p>
+                Placement and lifecycle<br />Fleet observations<br />Controller
+                SQLite
+              </p>
+            </div>
+            <div class="connection">
+              <span>HTTP</span><span aria-hidden="true">→</span>
+            </div>
+            <div class="node">
+              <h3><code>tt-agent</code></h3>
+              <p>
+                One per resource host<br />Native engines and storage<br />Agent
+                SQLite
+              </p>
+            </div>
+          </div>
+          <figcaption>
+            No external database or message queue. Shared Go packages supply
+            API models, capability contracts and host implementations.
+            <a
+              href="https://github.com/TTstack/tt/blob/main/docs/architecture.md"
+              >Read the architecture guide →</a
+            >
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="usage" aria-labelledby="usage-title">
+        <div class="section-heading">
+          <p class="eyebrow">Usage</p>
+          <h2 id="usage-title">Create an environment. Keep its disk.</h2>
+          <p>
+            With a configured CLI, a registered QEMU host and a prepared
+            <code>alpine-cloud</code> image, this example retains the guest
+            until you delete it.
+          </p>
+        </div>
+        <div class="terms">
+          <div class="term">
+            <h3 id="create-example-title">Create and inspect</h3>
+            <pre
+              tabindex="0"
+              role="region"
+              aria-labelledby="create-example-title"
+            ><code>tt env create demo --image alpine-cloud \
+  --engine qemu --cpu 1 --mem 256 --disk 2048 \
+  --ssh-key ~/.ssh/id_ed25519.pub --lifetime 0
+
+tt env show demo</code></pre>
+            <p>
+              Use the guest IP from the agent host, or the configured SSH
+              endpoint reported by <code>env show</code> from a remote client.
+              Wait for SSH readiness.
+            </p>
+          </div>
+          <div class="term">
+            <h3 id="lifecycle-example-title">Stop, restart and delete</h3>
+            <pre
+              tabindex="0"
+              role="region"
+              aria-labelledby="lifecycle-example-title"
+            ><code># Stop retains the guest disk.
+tt env stop demo
+
+# Start boots the retained disk again.
+tt env start demo
+
+# Delete removes disks and recovery points.
+tt env delete demo</code></pre>
+          </div>
+        </div>
+        <p class="note">
+          Omit <code>--lifetime 0</code> for the six-hour default; expiry also
+          deletes the guest disks. <code>running</code> describes the VM
+          process, not SSH or application readiness. Follow the
+          <a
+            href="https://github.com/TTstack/tt#quick-start-single-linuxsystemd-host"
+            >full installation walkthrough</a
+          >
+          and
+          <a href="https://github.com/TTstack/tt/blob/main/docs/ssh.md"
+            >SSH guide</a
+          >
+          for setup and access.
+        </p>
+      </section>
+
+      <section id="engines" aria-labelledby="engines-title">
+        <div class="section-heading">
+          <p class="eyebrow">Engines</p>
+          <h2 id="engines-title">Choose the guest you need.</h2>
+          <p>
+            One lifecycle interface, with explicit requirements for each engine
+            and storage backend.
+          </p>
+        </div>
+        <div class="grid engines">
+          <article class="card engine-qemu">
+            <p class="eyebrow">Full virtual machines</p>
+            <h3>QEMU/KVM</h3>
+            <p>
+              Cloud images, initial SSH accounts and public keys, with optional
+              guest sudo. Stopped VMs support CPU/RAM updates and virtual-disk
+              growth; guest partitions and filesystems grow separately.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/guest-images.md"
+              >Prepare a QEMU guest →</a
+            >
+          </article>
+          <article class="card engine-firecracker">
+            <p class="eyebrow">Prepared microVMs</p>
+            <h3>Firecracker</h3>
+            <p>
+              A prepared kernel and ext4 rootfs under jailer, with resource
+              limits, read-only configuration and stopped-VM resizing. Prepared
+              images can support SSH; the built-in smoke image checks boot and
+              networking only.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/guest-images.md#firecracker-guest-configuration"
+              >Prepare a Firecracker guest →</a
+            >
+          </article>
+          <article class="card engine-docker">
+            <p class="eyebrow">Application containers</p>
+            <h3>Docker/Podman</h3>
+            <p>
+              Images with a long-running default command and requested
+              application ports. The selected runtime stays bound to the agent
+              inventory. Container disk quotas, managed SSH and VM network
+              policies are unavailable.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/guest-images.md"
+              >Prepare a container →</a
+            >
+          </article>
+        </div>
+        <aside id="freebsd" class="callout" aria-labelledby="freebsd-title">
+          <div>
+            <p class="eyebrow">Experimental</p>
+            <h3 id="freebsd-title">FreeBSD bhyve and Jail</h3>
+          </div>
+          <div>
+            <p>
+              Mixed fleets can use prepared bhyve raw disks and copied Jail
+              roots. bhyve supports stopped zvol recovery points; Jail supports
+              root public-key injection. Native binaries and manual host/network
+              setup are required. Primary CI and automated deployment remain
+              Linux-only.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/deployment.md#experimental-freebsd"
+              >FreeBSD requirements and tested scope →</a
+            >
+          </div>
+        </aside>
+      </section>
+
+      <section id="lifecycle" aria-labelledby="lifecycle-title">
+        <div class="section-heading">
+          <p class="eyebrow">Lifecycle</p>
+          <h2 id="lifecycle-title">Explicit state, retained resources.</h2>
+          <p>
+            Creation is saved before provisioning. A timeout can leave running
+            or partial resources; inspect the existing environment before
+            retrying.
+          </p>
+        </div>
+        <dl class="states" aria-label="Environment states">
+          <div class="state creating">
+            <dt><code>creating</code></dt>
+            <dd>A saved plan is being provisioned.</dd>
+          </div>
+          <div class="state active">
+            <dt><code>active</code></dt>
+            <dd>All VM processes run without reported errors.</dd>
+          </div>
+          <div class="state stopped">
+            <dt><code>stopped</code></dt>
+            <dd>Execution has stopped; disks remain.</dd>
+          </div>
+          <div class="state failed">
+            <dt><code>failed</code></dt>
+            <dd>Inspect errors and retained resources.</dd>
+          </div>
+          <div class="state deleting">
+            <dt><code>deleting</code></dt>
+            <dd>Cleanup continues until resources are removed.</dd>
+          </div>
+        </dl>
+        <p class="note">
+          Start boots stopped guests; VM memory does not survive a stop. Delete
+          and expiry remove guest storage and backups. The controller retries
+          incomplete deletion; host reboot does not automatically restart
+          guests.
+          <a
+            href="https://github.com/TTstack/tt/blob/main/docs/rest-api.md#lifecycle-and-durability"
+            >Lifecycle and durability →</a
+          >
+        </p>
+      </section>
+
+      <section id="highlights" aria-labelledby="highlights-title">
+        <div class="section-heading">
+          <p class="eyebrow">Operations</p>
+          <h2 id="highlights-title">Know what the host can do.</h2>
+          <p>
+            Capability checks guide admission. Runtime state, image eligibility
+            and capacity still matter when each operation executes.
+          </p>
+        </div>
+        <div class="grid features">
+          <article class="card">
+            <h3>Inspect support</h3>
+            <p>
+              <code>tt capabilities</code> shows the design matrix.
+              <code>tt host show HOST_ID</code> shows scoped host prerequisites
+              and denial reasons.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/capabilities.md"
+              >Capability contracts →</a
+            >
+          </article>
+          <article class="card">
+            <h3>Place by reservation</h3>
+            <p>
+              CPU, memory and disk figures are configured budgets and
+              reservations. VM placement prefers eligible zvol hosts, then packs
+              by remaining memory.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/architecture.md#9-controller"
+              >Placement and storage →</a
+            >
+          </article>
+          <article class="card">
+            <h3>Resize while stopped</h3>
+            <p>
+              QEMU and Firecracker accept CPU/RAM changes and root-disk growth.
+              Updates preserve the VM identity and disk; shrinking is
+              unsupported.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/rest-api.md#request-defaults-and-limits"
+              >Offline resource updates →</a
+            >
+          </article>
+          <article class="card">
+            <h3>Keep a disk recovery point</h3>
+            <p>
+              Opt-in, stopped-only backups use qualified zvol snapshots or
+              strict Linux file reflinks. Restore overwrites the current disk
+              and leaves the VM stopped.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/disk-backup.md"
+              >Backup eligibility and retries →</a
+            >
+          </article>
+          <article class="card">
+            <h3>Choose network controls</h3>
+            <p>
+              Linux QEMU and Firecracker support routed outgoing denial and
+              separate guest isolation from host services, peers and private
+              networks.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/guest-images.md#networking-and-published-ports"
+              >Networking and isolation →</a
+            >
+          </article>
+          <article class="card">
+            <h3>Prepare images on each host</h3>
+            <p>
+              Local recipes prepare guest images; deployment installs services.
+              Register hosts separately and wait for their image catalog before
+              placement.
+            </p>
+            <a
+              class="more"
+              href="https://github.com/TTstack/tt/blob/main/docs/guest-images.md"
+              >Images and discovery →</a
+            >
+          </article>
+        </div>
+      </section>
+
+      <section id="scope" aria-labelledby="scope-title">
+        <div class="section-heading">
+          <p class="eyebrow">Scope and access</p>
+          <h2 id="scope-title">A manager for small, trusted fleets.</h2>
+        </div>
+        <ul class="points">
+          <li>
+            <strong>One administrator boundary.</strong> Deployment configures a
+            shared API key; owner names are labels. Services use HTTP without
+            built-in TLS. Protect management access with a trusted network or
+            protected tunnel/proxy. Manual starts without a key leave the API
+            unauthenticated.
+          </li>
+          <li>
+            <strong>Local resources, caller-owned policy.</strong> There is no
+            image distribution, guest migration, HA or cross-host private
+            network. User identity, application installation and idle-stop
+            policy belong to callers. Disk recovery points share the host
+            storage's failure domain.
+          </li>
+          <li>
+            <strong>Evidence for named revisions.</strong> The 50-host and
+            1000-VM limits are guardrails, not benchmarked capacity.
+            Implementation, host probes and live guest validation prove
+            different things; the
+            <a
+              href="https://github.com/TTstack/tt/blob/main/docs/compatibility.md"
+              >compatibility guide</a
+            >
+            and
+            <a
+              href="https://github.com/TTstack/tt/blob/main/docs/README.md#validation-evidence"
+              >dated reports</a
+            >
+            record the tested combinations and limits.
+          </li>
+        </ul>
+      </section>
+
+      <section id="docs" aria-labelledby="docs-title">
+        <div class="section-heading">
+          <p class="eyebrow">Documentation</p>
+          <h2 id="docs-title">Start with the guide for your task.</h2>
+          <p>
+            Current behavior lives in maintained guides. The plan retains
+            delivery context; validation reports record evidence at specific
+            revisions.
+          </p>
+        </div>
+        <ul class="doc-links">
+          <li>
+            <a href="https://github.com/TTstack/tt/blob/main/docs/architecture.md"
+              ><h3>Architecture <span aria-hidden="true">↗</span></h3>
+              <p>Components, packages, concurrency and data flow.</p></a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/TTstack/tt/blob/main/docs/deployment.md"
+              ><h3>Deployment <span aria-hidden="true">↗</span></h3>
+              <p>Prerequisites, installation and offline upgrades.</p></a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/TTstack/tt/blob/main/docs/guest-images.md"
+              ><h3>Guest images <span aria-hidden="true">↗</span></h3>
+              <p>Recipes, storage layouts and guest networking.</p></a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/TTstack/tt/blob/main/docs/rest-api.md"
+              ><h3>REST API <span aria-hidden="true">↗</span></h3>
+              <p>Routes, request limits and lifecycle.</p></a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/TTstack/tt/blob/main/docs/ssh.md"
+              ><h3>Initial SSH access <span aria-hidden="true">↗</span></h3>
+              <p>Accounts, public keys, endpoints and readiness.</p></a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/TTstack/tt/blob/main/docs/capabilities.md"
+              ><h3>
+                Technical capabilities <span aria-hidden="true">↗</span>
+              </h3>
+              <p>Design matrix, scoped host reports and admission.</p></a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/TTstack/tt/blob/main/docs/disk-backup.md"
+              ><h3>VM disk backup <span aria-hidden="true">↗</span></h3>
+              <p>Recovery points, destructive restore and exact retries.</p></a
+            >
+          </li>
+          <li>
+            <a
+              href="https://github.com/TTstack/tt/blob/main/docs/compatibility.md"
+              ><h3>Compatibility <span aria-hidden="true">↗</span></h3>
+              <p>Wire, SQLite and host contract with the Rust release.</p></a
+            >
+          </li>
+        </ul>
+        <p class="note">
+          <a href="https://github.com/TTstack/tt/blob/main/docs/README.md"
+            >Full documentation index →</a
+          >
+          <a href="https://github.com/TTstack/tt/blob/main/docs/development.md"
+            >Development guide →</a
+          >
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap foot">
+        <p>tt · TTstack in Go · MIT licensed</p>
+        <p>
+          <a href="https://github.com/TTstack/tt/blob/main/README.md">README</a>
+          <a href="https://github.com/TTstack/tt/blob/main/LICENSE">License</a>
+          <a href="https://github.com/TTstack/tt">GitHub</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
