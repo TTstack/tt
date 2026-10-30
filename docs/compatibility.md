@@ -196,6 +196,13 @@ body before choosing Go validation or HTTP server limits.
 
 ## 4. Persistent state
 
+Before v1.0, maintain only the latest development schema under the
+[DB schema policy](development.md#db-schema-policy-before-v10). Existing version
+markers and migration code remain, but schema versions do not advance with
+development iterations and older development databases need not be compatible.
+The layouts and retained migration behavior below describe the current code,
+not a stable upgrade guarantee.
+
 ### Controller database (`ctl.db`)
 
 ```sql
@@ -417,12 +424,10 @@ The independent review and evidence are recorded in
 
 The optional protocols in §10–15 extend the pinned release under explicit
 operator authorization. Legacy HTTP requests, six-hour default lifetime and
-implicit SSH forwarding retain their existing behavior. Databases advance to
-controller v9 and agent v10 even for legacy API users; valid controller v5 and
-agent v6 state migrate forward. These databases cannot be reopened by the
-pinned Rust or an older Go release. Keep an offline database copy before upgrade;
-service takeover by an older binary requires that compatible copy, not an
-in-place schema downgrade.
+implicit SSH forwarding retain their existing behavior. Database handling follows
+the pre-v1.0 development policy in §4. Versioning and existing migration code are
+retained; further development changes update the latest schema in place without
+requiring compatibility with previous development databases.
 
 `tt-agent --stop-grace` sets the default grace for Linux QEMU/Firecracker:
 `-1` preserves 10/30 seconds, `0` skips the graceful attempt, and a positive

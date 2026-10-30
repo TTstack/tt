@@ -43,6 +43,28 @@ The [AI workflow validation matrix](ai-workflow.md#go-validation) distinguishes
 documentation-only work, ordinary Go gates, cross-builds and native acceptance,
 and lists the opt-in test environment variables.
 
+## DB schema policy before v1.0
+
+The project has no formal deployment yet. Before v1.0, database changes maintain
+only the latest development schema; compatibility with earlier development
+databases is not required.
+
+Keep the existing schema-version fields, checks and migration infrastructure for
+future stable releases. Do not increment `schemaVersion` or `agentSchemaVersion`,
+or add historical migration steps, for pre-v1.0 feature iterations. Update the
+current schema definitions and their tests/fixtures directly. The existing
+controller/agent markers remain 9/10; equal markers across development commits
+do not guarantee identical layouts or compatibility. Retained migrations cover
+only their implemented cases and do not create a compatibility obligation.
+
+When a layout change makes a development database obsolete, recreate the
+explicitly owned test state as needed. Do not silently delete or repair existing
+databases, guest disks, ownership records or reservations. Resource ownership and
+unknown-outcome safeguards still apply.
+
+Revisit schema version increments and supported upgrade paths for the v1.0
+release. Until then, schema compatibility does not gate development changes.
+
 ## Dependencies
 
 The direct dependency set is intentionally closed. Adding a direct module requires

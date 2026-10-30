@@ -36,6 +36,10 @@ contracts, and label source-dependent parity conclusions unverified.
 - Compatibility is normative: [docs/compatibility.md](docs/compatibility.md)
   records every wire rule, identifier and deliberate deviation. Changing a field,
   path, default or message requires updating that document in the same commit.
+- Before v1.0, retain DB versioning infrastructure but do not increment schema
+  versions for development changes or require compatibility with older development
+  databases. Update the current schema and tests in place; follow the
+  [DB schema policy](docs/development.md#db-schema-policy-before-v10).
 - Dependencies are a closed set (see [docs/development.md](docs/development.md)).
   Adding one needs an explicit, written reason.
 - Reservations, repository contents and state formats are never silently

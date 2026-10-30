@@ -7,6 +7,12 @@ protocols and their forward-only database migrations are specified in
 they are outside pinned Rust parity. The original phases 0–7 are implemented and accepted within the recorded native matrix. This document is the contract for
 what will be built, how it maps onto the Rust release, and how each step is verified.
 
+Current development exception: before v1.0, retain DB versioning infrastructure
+without incrementing schema versions for feature iterations or requiring older
+development DB compatibility. The
+[DB schema policy](development.md#db-schema-policy-before-v10) takes precedence
+over this historical plan's state-interchange and migration acceptance rules.
+
 ## 1. Purpose
 
 TTstack is a lightweight private cloud for developers and small teams: a CLI

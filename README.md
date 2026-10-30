@@ -16,9 +16,11 @@ matrix and limits, and [feature coverage](docs/validation/feature-coverage.md).
 Optional compute extensions add durable command receipts, persistent volumes,
 workspace checkpoints, portable archives, verified image caches and epoch
 recovery. They preserve legacy API defaults but upgrade databases forward to
-controller v9/agent v10. Read the
-[upgrade boundary](docs/compatibility.md#10-durable-command-envelope-optional-extension)
-before deploying them. Current native evidence is in the
+controller v9/agent v10. These are retained development markers: before v1.0,
+schema versions do not advance with feature iterations and older development
+DB compatibility is not required. See the
+[DB schema policy](docs/development.md#db-schema-policy-before-v10).
+Current native evidence is in the
 [upstream backport report](docs/validation/upstream-backports-2026-10-30.md).
 
 ## Why Go

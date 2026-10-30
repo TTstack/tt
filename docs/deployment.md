@@ -142,6 +142,13 @@ consult the [validation records](validation/) for actual native coverage.
 
 ## Upgrade and offline v5 conversion
 
+The project has no formal deployment yet. Before v1.0, use the latest development
+schema and recreate explicitly owned test databases when needed; older DB
+compatibility is not required. Existing version checks, migrations and converter
+code remain available, but do not require new schema-version increments during
+development. See the [DB schema policy](development.md#db-schema-policy-before-v10).
+The retained procedures below describe existing code, not a stable upgrade promise.
+
 The optional recovery extensions migrate valid controller v5 state to v9 and
 agent v6–v9 state to v10 at startup. Before upgrading, stop the service and save
 an offline copy of its database and companion WAL/SHM files if present. Older Go
