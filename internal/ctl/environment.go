@@ -2,6 +2,7 @@ package ctl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/TTstack/tt/internal/api"
 	"github.com/TTstack/tt/internal/capability"
+	"github.com/TTstack/tt/internal/command"
 	"github.com/TTstack/tt/internal/guestconfig"
 	"github.com/TTstack/tt/internal/model"
 	"github.com/TTstack/tt/internal/sshboot"
@@ -68,6 +70,14 @@ func (s *Server) createEnvironment(ctx context.Context, request api.CreateEnvReq
 		}
 	}
 	request.SSHKeys = nil
+	if managedRequest(request) {
+		if commandGeneration(ctx) == 0 {
+			return api.EnvDetail{}, diskAPIError("terminal", "missing_identity", "managed environment requires fenced identity")
+		}
+		if failure := s.observeRequestedDisks(ctx, request); failure != nil {
+			return api.EnvDetail{}, failure
+		}
+	}
 	created := s.now()
 	lifetime := model.DefaultLifetime
 	if request.Lifetime != nil {
@@ -103,12 +113,18 @@ func (s *Server) createEnvironment(ctx context.Context, request api.CreateEnvReq
 	if apiErr != nil {
 		return api.EnvDetail{}, apiErr
 	}
+	if managedRequest(request) {
+		if failure := s.finishCreation(ctx, request.ID, requests); failure != nil {
+			return api.EnvDetail{}, failure
+		}
+		return s.environmentDetail(ctx, request.ID)
+	}
 	s.workers.Add(1)
 	transferred = true
 	go func() {
 		defer s.workers.Done()
 		defer operation.Close()
-		if err := s.finishCreation(s.workCtx, request.ID, requests); err != nil && s.workCtx.Err() == nil {
+		if err := s.finishCreation(command.CopyContext(s.workCtx, ctx), request.ID, requests); err != nil && s.workCtx.Err() == nil {
 			s.log("[ctl] creation: %s", err.Message)
 		}
 	}()
@@ -122,6 +138,9 @@ func (s *Server) planEnvironment(ctx context.Context, request api.CreateEnvReq, 
 		return nil, internal(err)
 	}
 	if existing != nil {
+		if managedRequest(request) {
+			return s.resumeManagedPlan(ctx, existing, request)
+		}
 		return nil, apiError(409, fmt.Sprintf("environment '%s' already exists; inspect it with 'tt env show %s'", request.ID, request.ID))
 	}
 	count, err := s.db.VMCount(ctx)
@@ -157,13 +176,24 @@ func (s *Server) planEnvironment(ctx context.Context, request api.CreateEnvReq, 
 		}
 		images[host.ID] = names
 	}
-	placements, err := ScheduleEnv(hosts, request.VMs, images)
+	placementSpecs := append([]api.VmSpec{}, request.VMs...)
+	for index, spec := range placementSpecs {
+		if spec.DurableRoot || spec.RootVolumeID != "" || len(spec.DataVolumeIDs) > 0 {
+			var e error
+			placementSpecs[index], e = s.prepareDiskPlacement(ctx, spec)
+			if e != nil {
+				return nil, internal(e)
+			}
+		}
+	}
+	placements, err := ScheduleEnv(hosts, placementSpecs, images)
 	if err != nil {
 		return nil, apiError(422, err.Error())
 	}
 	planned := []model.Vm{}
 	requests := []creationRequest{}
-	for _, item := range placements {
+	pendingRoots := []model.Volume{}
+	for index, item := range placements {
 		spec, placement := item.Spec, item.Placement
 		keys := append(model.List[string]{}, spec.SSHKeys...)
 		slices.Sort(keys)
@@ -174,12 +204,55 @@ func (s *Server) planEnvironment(ctx context.Context, request api.CreateEnvReq, 
 		requestedDisk := defaultValue(spec.Disk, spec.Engine.DefaultDisk())
 		planned = append(planned, model.Vm{Backup: model.NewBackupState(), ID: id, EnvID: request.ID, HostID: placement.HostID, Image: spec.Image, Engine: spec.Engine, CPU: cpu, Mem: mem, Disk: placement.Disk, State: model.VmCreating, CreatedAt: created, Options: model.VmOptions{SSH: spec.SSH, Ports: spec.Ports, SSHKeys: keys, DenyOutgoing: spec.DenyOutgoing, RequestedDisk: requestedDisk, IsolatedNetwork: spec.IsolatedNetwork, GuestConfigDigest: guestconfig.Digest(spec.GuestConfig)}})
 		requests = append(requests, creationRequest{placement.HostAddr, api.CreateVmReq{SSH: spec.SSH, VmID: id, EnvID: request.ID, Image: spec.Image, Engine: spec.Engine, CPU: cpu, Mem: mem, Disk: requestedDisk, Ports: spec.Ports, DenyOutgoing: spec.DenyOutgoing, SSHKeys: keys, IsolatedNetwork: spec.IsolatedNetwork, GuestConfig: spec.GuestConfig}})
+		plannedVM := &planned[len(planned)-1]
+		dispatch := &requests[len(requests)-1].request
+		managed := spec.DurableRoot || spec.RootVolumeID != ""
+		plannedVM.Options.RootManaged = managed
+		plannedVM.Options.RootVolumeID = spec.RootVolumeID
+		plannedVM.Options.InitialStopped = spec.InitialStopped
+		dispatch.HostID = placement.HostID
+		dispatch.VolumeOwner = request.Owner
+		if dispatch.VolumeOwner == "" {
+			dispatch.VolumeOwner = request.ID
+		}
+		dispatch.DurableRoot = spec.DurableRoot
+		dispatch.RootRetain = spec.RootRetain
+		dispatch.InitialStopped = spec.InitialStopped
+		dispatch.DataVolumeIDs = spec.DataVolumeIDs
+		if managed && spec.RootVolumeID == "" {
+			rootID := managedRootID(request.ID, index, commandGeneration(ctx))
+			existingRoot, e := s.db.GetVolume(ctx, rootID)
+			if e != nil {
+				return nil, internal(e)
+			}
+			if existingRoot != nil {
+				return nil, diskAPIError("terminal", "volume_identity_exists", "a managed root identity cannot be reused; choose a new environment generation")
+			}
+
+			retain := true
+			if spec.RootRetain != nil {
+				retain = *spec.RootRetain
+			}
+			format := "raw"
+			for _, host := range hosts {
+				if host.ID == placement.HostID && host.Storage == model.File && spec.Engine == model.Qemu {
+					format = "qcow2"
+				}
+			}
+			pendingRoots = append(pendingRoots, model.Volume{ID: rootID, Owner: dispatch.VolumeOwner, HostID: placement.HostID, Generation: commandGeneration(ctx), SizeMiB: requestedDisk, Engine: spec.Engine, Image: spec.Image, Format: format, Retain: retain, State: "creating", Phase: "reserved", CreatedAt: created})
+			plannedVM.Options.RootVolumeID = rootID
+		}
+		dispatch.RootVolumeID = plannedVM.Options.RootVolumeID
+
 	}
 	ids := model.List[string]{}
 	for _, vm := range planned {
 		ids = append(ids, vm.ID)
 	}
 	env := model.Env{ID: request.ID, Owner: request.Owner, VmIds: ids, CreatedAt: created, ExpiresAt: expires, State: model.EnvCreating}
+	if managedRequest(request) {
+		env.CreationHash = creationHash(request)
+	}
 	for i := range hosts {
 		for _, vm := range planned {
 			if vm.HostID == hosts[i].ID {
@@ -187,7 +260,34 @@ func (s *Server) planEnvironment(ctx context.Context, request api.CreateEnvReq, 
 			}
 		}
 	}
-	if err := s.db.PutEnvironment(ctx, &env, planned, hosts); err != nil {
+	for i := range hosts {
+		for _, root := range pendingRoots {
+			if root.HostID == hosts[i].ID {
+				hosts[i].Resource.DiskUsed = model.SatAdd(hosts[i].Resource.DiskUsed, root.ReservedMiB())
+			}
+		}
+	}
+	if err := s.db.transaction(ctx, "managed environment admission", func(tx *DB) error {
+		if e := tx.PutEnv(ctx, &env); e != nil {
+			return e
+		}
+		for i := range planned {
+			if e := tx.PutVM(ctx, &planned[i]); e != nil {
+				return e
+			}
+		}
+		for i := range hosts {
+			if e := tx.PutHost(ctx, &hosts[i]); e != nil {
+				return e
+			}
+		}
+		for i := range pendingRoots {
+			if e := tx.PutVolume(ctx, &pendingRoots[i]); e != nil {
+				return e
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, internal(err)
 	}
 	s.revision.Add(1)
@@ -202,7 +302,21 @@ func (s *Server) finishCreation(ctx context.Context, id string, requests []creat
 	if err != nil {
 		return internal(err)
 	}
+	var effectError error
 	for _, item := range requests {
+		if envelope, ok := command.FromContext(ctx); ok {
+			var highest uint64
+			_, err := withDB(s, func(db *DB) (model.Unit, error) {
+				e := db.q.QueryRowContext(ctx, "SELECT token FROM command_fences WHERE subject=?1", envelope.Subject).Scan(&highest)
+				return model.Unit{}, e
+			})
+			if err != nil {
+				return internal(err)
+			}
+			if highest > envelope.Token {
+				return internal(&api.BoundaryError{Class: "state", Code: "stale_fence", Message: "creation ownership withdrawn"})
+			}
+		}
 		env, err := withDB(s, func(db *DB) (*model.Env, error) { return db.GetEnv(ctx, id) })
 		if err != nil {
 			return internal(err)
@@ -219,6 +333,7 @@ func (s *Server) finishCreation(ctx context.Context, id string, requests []creat
 				return internal(err)
 			}
 		} else {
+			effectError = err
 			message := err.Error()
 			_, err := withDB(s, func(db *DB) (model.Unit, error) {
 				vm, err := db.GetVM(ctx, item.request.VmID)
@@ -238,7 +353,13 @@ func (s *Server) finishCreation(ctx context.Context, id string, requests []creat
 		}
 	}
 	s.refreshHosts(ctx, reader, &id)
-	return internal(s.updateEnvState(ctx, id))
+	if err := s.updateEnvState(ctx, id); err != nil {
+		return internal(err)
+	}
+	if effectError != nil {
+		return diskAPIError("unknown", "creation_incomplete", "pinned creation remains retained for idempotent replay")
+	}
+	return nil
 }
 func (s *Server) deleteEnvironment(ctx context.Context, id string, expiryOnly bool) *APIError {
 	operation, apiErr := s.beginOperation(id)
@@ -280,6 +401,7 @@ func (s *Server) deleteEnvironment(ctx context.Context, id string, expiryOnly bo
 		return internal(err)
 	}
 	failures := []string{}
+	var boundaryFailure *api.BoundaryError
 	for _, vm := range vms {
 		host := findHost(hosts, vm.HostID)
 		var err error
@@ -301,6 +423,10 @@ func (s *Server) deleteEnvironment(ctx context.Context, id string, expiryOnly bo
 			}
 		} else {
 			failures = append(failures, vm.ID+": "+err.Error())
+			var typed *api.BoundaryError
+			if errors.As(err, &typed) {
+				boundaryFailure = typed
+			}
 		}
 	}
 	s.dbMu.Lock()
@@ -321,6 +447,9 @@ func (s *Server) deleteEnvironment(ctx context.Context, id string, expiryOnly bo
 	if err := s.db.PutEnv(ctx, env); err != nil {
 		return internal(err)
 	}
+	if boundaryFailure != nil {
+		return internal(boundaryFailure)
+	}
 	return apiError(502, "cleanup incomplete; environment retained for retry: "+message)
 }
 func findHost(hosts []model.Host, id string) *model.Host {
@@ -331,7 +460,7 @@ func findHost(hosts []model.Host, id string) *model.Host {
 	}
 	return nil
 }
-func (s *Server) changeEnvironment(ctx context.Context, id, action string) *APIError {
+func (s *Server) changeEnvironment(ctx context.Context, id, action string, options ...model.StopOptions) *APIError {
 	operation, apiErr := s.beginOperation(id)
 	if apiErr != nil {
 		return apiErr
@@ -383,13 +512,14 @@ func (s *Server) changeEnvironment(ctx context.Context, id, action string) *APIE
 		}
 	}
 	failures := []string{}
+	var boundaryFailure *api.BoundaryError
 	for _, vm := range detail.VMs {
 		host := findHost(hosts, vm.HostID)
 		var err error
 		if host == nil {
 			err = fmt.Errorf("host %s is missing", vm.HostID)
 		} else {
-			err = client.action(ctx, *host, vm.ID, &action)
+			err = client.action(ctx, *host, vm.ID, &action, options...)
 		}
 		if err == nil {
 			confirmed := vm
@@ -403,6 +533,10 @@ func (s *Server) changeEnvironment(ctx context.Context, id, action string) *APIE
 			}
 		} else {
 			failures = append(failures, vm.ID+": "+err.Error())
+			var typed *api.BoundaryError
+			if errors.As(err, &typed) {
+				boundaryFailure = typed
+			}
 		}
 	}
 	reader, err := s.clientFactory(5 * time.Second)
@@ -433,6 +567,9 @@ func (s *Server) changeEnvironment(ctx context.Context, id, action string) *APIE
 		env.Error = &message
 		if _, err := withDB(s, func(db *DB) (model.Unit, error) { return model.Unit{}, db.PutEnv(ctx, env) }); err != nil {
 			return internal(err)
+		}
+		if boundaryFailure != nil {
+			return internal(boundaryFailure)
 		}
 		return apiError(502, message)
 	}

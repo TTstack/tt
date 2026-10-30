@@ -61,6 +61,9 @@ func (o VmOptions) ConfigDiskMiB(engine Engine) uint32 {
 }
 func (v Vm) ReservedDisk() uint32 {
 	disk := v.Disk
+	if v.Options.RootManaged {
+		disk = SatAdd(v.Options.RootDiskCharge, v.Options.ConfigDiskMiB(v.Engine))
+	}
 	if v.PendingResources != nil {
 		disk = max(disk, SatAdd(v.PendingResources.Disk, v.Options.ConfigDiskMiB(v.Engine)))
 	}
@@ -69,7 +72,7 @@ func (v Vm) ReservedDisk() uint32 {
 func (r *Resource) Account(v Vm) {
 	r.DiskUsed = SatAdd(r.DiskUsed, v.ReservedDisk())
 	r.VmCount = SatAdd(r.VmCount, 1)
-	if v.State != VmStopped {
+	if v.State != VmStopped && !(v.Options.InitialStopped && !v.Options.CreationComplete) {
 		r.CPUUsed = SatAdd(r.CPUUsed, v.CPU)
 		r.MemUsed = SatAdd(r.MemUsed, v.Engine.MemoryReservation(v.Mem))
 	}
@@ -79,7 +82,7 @@ func (r *Resource) Account(v Vm) {
 func (r *Resource) Release(v Vm) {
 	r.DiskUsed = SatSub(r.DiskUsed, v.ReservedDisk())
 	r.VmCount = SatSub(r.VmCount, 1)
-	if v.State != VmStopped {
+	if v.State != VmStopped && !(v.Options.InitialStopped && !v.Options.CreationComplete) {
 		r.CPUUsed = SatSub(r.CPUUsed, v.CPU)
 		r.MemUsed = SatSub(r.MemUsed, v.Engine.MemoryReservation(v.Mem))
 	}

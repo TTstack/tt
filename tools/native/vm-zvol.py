@@ -1,7 +1,7 @@
 """Bounded native VM/reflink acceptance inside the private Linux lab."""
 import http.client,json,os,pathlib,subprocess,time,uuid
 assert b'/tmp/tt-go-port-6426/lab-server.py\x00' in pathlib.Path('/proc/1/cmdline').read_bytes(), 'run only inside the owned lab'
-root=pathlib.Path('/tmp/tt-go-port-6426');go=root/'bin';rust=root/'rust-target/debug';key=uuid.uuid4().hex;processes=[]
+root=pathlib.Path('/tmp/tt-go-port-6426');go=root/'bin';rust=go if os.environ.get('TT_NATIVE_GO_ONLY')=='1' else root/'rust-target/debug';key=uuid.uuid4().hex;processes=[]
 def call(port,method,path,body=None):
  connection=http.client.HTTPConnection('127.0.0.1',port,timeout=240);headers={'Authorization':'Bearer '+key}
  if body is not None:headers['Content-Type']='application/json';body=json.dumps(body)
@@ -91,7 +91,7 @@ try:
   cli(go/'tt',['env','start',name]);assert marker(vm)=='second';assert marker(vm,'after-replay')=='after-replay';cli(go/'tt',['env','stop',name]);cli(go/'tt',retry)
   cli(go/'tt',['env','start',name]);assert marker(vm)=='after-replay';cli(go/'tt',['env','stop',name]);cli(go/'tt',['env','backup','delete',vmid]);cli(go/'tt',['env','delete',name])
   assert subprocess.run(['zfs','list','ttgo6426/runtime/clone-'+vmid],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0
-  print(engine+': SSH account/external port, egress, stale PID, mixed live takeover, cold boot, resize, zvol refresh/restore/exact replay and deletion passed',flush=True)
+  print(engine+': SSH account/external port, egress, stale PID, service takeover, cold boot, resize, zvol refresh/restore/exact replay and deletion passed',flush=True)
  print('Linux zvol VM matrix passed',flush=True)
 finally:
  for process,log in reversed(processes):

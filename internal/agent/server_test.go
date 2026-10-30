@@ -257,3 +257,39 @@ func TestCorruptInventoryPinsEveryReservationDimensionInInfo(t *testing.T) {
 		t.Fatal(result.Data.Warnings)
 	}
 }
+
+func TestCommandFenceAndReplayBeforeHostEffect(t *testing.T) {
+	s, e, _ := serverFixture(t)
+	handler := s.Handler(nil)
+	req := requestFixture()
+	req.EnvID = "workspace-g1"
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := func(token uint64, key string, body []byte) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "/api/vms", bytes.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		envelope, _ := json.Marshal(map[string]any{"subject": req.EnvID, "generation": 1, "token": token, "key": key, "fingerprint": strings.Repeat("a", 64)})
+		r.Header.Set("X-Compute-Command", string(envelope))
+		out := httptest.NewRecorder()
+		handler.ServeHTTP(out, r)
+		return out
+	}
+	if out := call(2, "create", data); out.Code != 201 {
+		t.Fatal(out.Code, out.Body)
+	}
+	if out := call(2, "create", data); out.Code != 201 || e.creates != 1 {
+		t.Fatal("host repeated accepted effect", out.Code, e.creates)
+	}
+	if out := call(1, "late", data); out.Code != 409 || e.creates != 1 {
+		t.Fatal("host accepted stale fence", out.Code, e.creates)
+	}
+	legacy := httptest.NewRequest("POST", "/api/vms", bytes.NewReader(data))
+	legacy.Header.Set("Content-Type", "application/json")
+	out := httptest.NewRecorder()
+	handler.ServeHTTP(out, legacy)
+	if out.Code != 409 || e.creates != 1 {
+		t.Fatal("legacy command bypassed fence", out.Code, e.creates)
+	}
+}

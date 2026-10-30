@@ -2,6 +2,7 @@ package ctl
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -21,6 +22,9 @@ func (s *Server) refreshHosts(ctx context.Context, client *agentClient, ownedEnv
 			return nil, err
 		}
 		for _, id := range corrupt {
+			if s.commandJournal.Authority != nil {
+				return nil, fmt.Errorf("recovery host catalog is unreadable")
+			}
 			// A row the decoder cannot read would otherwise stay a phantom
 			// online host forever: online to the scheduler, unreachable to
 			// this loop. Replace it with a visible offline marker; the fresh
@@ -80,6 +84,9 @@ func (s *Server) refreshHosts(ctx context.Context, client *agentClient, ownedEnv
 			return nil, err
 		}
 		for _, id := range corrupt {
+			if s.commandJournal.Authority != nil {
+				return nil, fmt.Errorf("recovery environment catalog is unreadable")
+			}
 			message := "unreadable environment record replaced by a failed marker; delete and recreate the environment"
 			if err := db.PutEnv(ctx, &model.Env{ID: id, State: model.EnvFailed, VmIds: model.List[string]{}, Error: &message}); err != nil {
 				return nil, err
@@ -122,6 +129,7 @@ func (s *Server) applySnapshot(ctx context.Context, id string, snapshot hostSnap
 	host.Engines = info.Engines
 	host.Capabilities = info.Capabilities
 	host.CapabilityReport = info.CapabilityReport
+	host.StorageFeatures = info.StorageFeatures
 	host.Storage = info.Storage
 	host.Images = info.Images
 	host.ImageSizes = info.ImageSizes
@@ -180,6 +188,11 @@ func (s *Server) applySnapshot(ctx context.Context, id string, snapshot hostSnap
 	host.Resource.CPUUsed = max(host.Resource.CPUUsed, info.Resource.CPUUsed)
 	host.Resource.MemUsed = max(host.Resource.MemUsed, info.Resource.MemUsed)
 	host.Resource.DiskUsed = max(host.Resource.DiskUsed, info.Resource.DiskUsed)
+	pending, err := s.db.pendingDiskReservation(ctx, id)
+	if err != nil {
+		return err
+	}
+	host.Resource.DiskUsed = model.SatAdd(host.Resource.DiskUsed, pending)
 	return s.db.PutHost(ctx, host)
 }
 

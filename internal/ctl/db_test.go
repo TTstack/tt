@@ -121,7 +121,7 @@ func TestMigrationAssignsStableRevisionsAndRollsBackBadRecords(t *testing.T) {
 				t.Fatal(err, version, raw)
 			}
 		} else {
-			if err != nil || version != 5 {
+			if err != nil || version != schemaVersion {
 				t.Fatal(err, version)
 			}
 			value, err := model.DecodeJSONValue([]byte(raw))
@@ -157,8 +157,8 @@ func TestMigrationPreservesExistingBackupAndRejectsNewerSchema(t *testing.T) {
 	if err := db.q.QueryRowContext(ctx, "SELECT data FROM vms WHERE id='a'").Scan(&raw); err != nil || raw != `{"backup":null,"future":true}` {
 		t.Fatal(raw, err)
 	}
-	execSQL(t, db, "UPDATE _meta SET value='6' WHERE key='schema_version'")
-	if err := db.migrate(ctx); err == nil || err.Error() != "database schema v6 is newer than this binary (v5); upgrade TTstack first" {
+	execSQL(t, db, "UPDATE _meta SET value='10' WHERE key='schema_version'")
+	if err := db.migrate(ctx); err == nil || err.Error() != "database schema v10 is newer than this binary (v9); upgrade TTstack first" {
 		t.Fatal(err)
 	}
 }

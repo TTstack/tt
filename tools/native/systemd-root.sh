@@ -33,6 +33,10 @@ printf 'passwd: files\ngroup: files\nshadow: files\nhosts: files dns\n' > "$root
 cp /etc/login.defs "$root/etc/login.defs"
 printf 'nameserver 1.1.1.1\n' > "$root/etc/resolv.conf"
 cp /etc/ld.so.cache "$root/etc/ld.so.cache"
+if [ -L /usr/bin/which ]; then
+    mkdir -p "$root/etc/alternatives"
+    ln -s "$(readlink -f /usr/bin/which)" "$root/etc/alternatives/which"
+fi
 ln -s /usr/lib/os-release "$root/etc/os-release"
 : > "$root/etc/fstab"
 cat /proc/sys/kernel/random/uuid | tr -d '-' > "$root/etc/machine-id"

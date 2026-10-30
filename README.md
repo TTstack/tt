@@ -13,6 +13,14 @@ and experimental FreeBSD Jail/bhyve. See the [Linux](docs/validation/linux-nativ
 and [FreeBSD](docs/validation/freebsd-native-2026-09-30.md) evidence for the tested
 matrix and limits, and [feature coverage](docs/validation/feature-coverage.md).
 
+Optional compute extensions add durable command receipts, persistent volumes,
+workspace checkpoints, portable archives, verified image caches and epoch
+recovery. They preserve legacy API defaults but upgrade databases forward to
+controller v9/agent v10. Read the
+[upgrade boundary](docs/compatibility.md#10-durable-command-envelope-optional-extension)
+before deploying them. Current native evidence is in the
+[upstream backport report](docs/validation/upstream-backports-2026-10-30.md).
+
 ## Why Go
 
 TTstack is a control plane: it schedules workloads, keeps state, and drives
@@ -37,7 +45,9 @@ in [docs/plan.md §3](docs/plan.md#3-why-go).
 The Go implementation targets **full wire compatibility** with the Rust release:
 
 - the same HTTP API and JSON envelopes (`{"ok":…,"data":…}` / `{"ok":…,"error":…}`);
-- the same SQLite schema versions (controller v5, agent v6) and table layouts;
+- forward migration from the pinned controller v5/agent v6 SQLite layouts;
+  optional recovery protocols use controller v9/agent v10 (see
+  [the upgrade boundary](docs/compatibility.md#10-durable-command-envelope-optional-extension));
 - the same CLI surface, output formatting and exit codes;
 - the same host-local contracts that survive a binary swap (tap names, bridge
   addresses, runtime paths, systemd units, key files).

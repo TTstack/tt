@@ -155,3 +155,19 @@ if [ "$1" = destroy ]; then exit 0; fi
 		t.Fatalf("rollback did not destroy children first:\n%s", text)
 	}
 }
+
+func TestRestoredFirecrackerDatasetCannotAliasSourceDevice(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "rootfs.ext4")
+	if err := os.Symlink("/dev/zvol/pool/source/rootfs", link); err != nil {
+		t.Fatal(err)
+	}
+	store := ZvolStore{waitDevice: func(context.Context, string) (string, error) { return "/dev/zvol/pool/restored/rootfs", nil }}
+	if err := rewireZvolRoot(context.Background(), store, "pool/restored", dir); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.Readlink(link)
+	if err != nil || got != "/dev/zvol/pool/restored/rootfs" {
+		t.Fatal("restore retained source device alias", got, err)
+	}
+}

@@ -19,8 +19,10 @@ import (
 )
 
 type Qemu struct {
-	runDir    string
-	processes processes
+	controlParent string
+	gracefulOnly  bool
+	runDir        string
+	processes     processes
 	// stopGrace bounds the graceful powerdown wait; 0 = force kill
 	// immediately. Defaults to 10 s (stopGraceSeconds override applies).
 	stopGrace time.Duration
@@ -50,6 +52,13 @@ func (q *Qemu) command(vm *model.Vm, disk, format string) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("invalid guest IP: %w", err)
 	}
 	args := []string{"-enable-kvm", "-daemonize", "-name", vm.ID, "-m", fmt.Sprintf("%dM", vm.Mem), "-smp", strconv.FormatUint(uint64(vm.CPU), 10), "-drive", fmt.Sprintf("file=%s,format=%s,if=virtio", disk, format), "-netdev", fmt.Sprintf("tap,id=net0,ifname=%s,script=no,downscript=no", netcfg.TapName(vm.ID)), "-device", "virtio-net-pci,netdev=net0,mac=" + mac, "-pidfile", q.pidPath(vm), "-monitor", "unix:" + q.monitorPath(vm) + ",server,nowait", "-vnc", "none"}
+	for index, disk := range vm.Options.DataVolumes {
+		if disk.Format != "raw" {
+			return nil, fmt.Errorf("data volume must use raw format")
+		}
+		device := fmt.Sprintf("tt-data-%d", index)
+		args = append(args, "-drive", fmt.Sprintf("file=%s,format=raw,if=none,id=%s", disk.Path, device), "-device", fmt.Sprintf("virtio-blk-pci,drive=%s,serial=data-%d", device, index))
+	}
 	if seed := q.seedPath(vm); exists(seed) {
 		args = append(args, "-drive", "file="+seed+",format=raw,if=virtio,readonly=on")
 	}
@@ -147,6 +156,8 @@ func (q *Qemu) monitor(ctx context.Context, vm *model.Vm, command string) (strin
 		return "", fmt.Errorf("QEMU monitor: %w", err)
 	}
 	defer conn.Close()
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
 	prompt := func() (string, error) {
 		reply := []byte{}
 		buf := make([]byte, 1024)
@@ -201,6 +212,13 @@ func (q *Qemu) Create(ctx context.Context, vm *model.Vm, image, format string, k
 	if err != nil {
 		return err
 	}
+	if q.controlParent != "" {
+		domain, err := bindQemuDomain(cmd, q.controlParent, netcfg.TapName(vm.ID))
+		if err != nil {
+			return err
+		}
+		defer domain.Close()
+	}
 	out, err := runcmd.Output(ctx, cmd, runcmd.DefaultTimeout)
 	if err != nil {
 		return fmt.Errorf("spawn qemu: %w", err)
@@ -237,6 +255,9 @@ func (q *Qemu) Stop(ctx context.Context, vm *model.Vm) error {
 				return err
 			}
 		}
+	}
+	if q.gracefulOnly {
+		return gracefulTimeout()
 	}
 	return q.processes.terminate(ctx, pid, q.pidPath(vm))
 }
@@ -283,4 +304,11 @@ func (q *Qemu) State(ctx context.Context, vm *model.Vm) (model.VmState, error) {
 		return model.VmRunning, nil
 	}
 	return "", fmt.Errorf("unexpected QEMU status: %s", status)
+}
+
+func (q *Qemu) withStopPolicy(options model.StopOptions) Engine {
+	clone := *q
+	clone.stopGrace = policyGrace(q.stopGrace, options)
+	clone.gracefulOnly = options.GracefulOnly
+	return &clone
 }

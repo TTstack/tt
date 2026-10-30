@@ -25,6 +25,9 @@ func validAgentAddress(address string) bool {
 	return err == nil && port != 80
 }
 func (s *Server) registerHost(ctx context.Context, request api.RegisterHostReq) (*model.Host, int, *APIError) {
+	return s.registerHostExpected(ctx, request, "")
+}
+func (s *Server) registerHostExpected(ctx context.Context, request api.RegisterHostReq, expected string) (*model.Host, int, *APIError) {
 	if !validAgentAddress(request.Addr) {
 		return nil, 0, apiError(400, "agent address must be host:port")
 	}
@@ -48,6 +51,9 @@ func (s *Server) registerHost(ctx context.Context, request api.RegisterHostReq) 
 		return nil, 0, apiError(502, "agent returned no data")
 	}
 	info := reply.Data
+	if expected != "" && info.HostID != expected {
+		return nil, 0, diskAPIError("unknown", "identity_mismatch", "receiver identity changed during enrollment")
+	}
 	if err := model.ValidateName(info.HostID, "host_id"); err != nil {
 		return nil, 0, apiError(502, err.Error())
 	}
@@ -93,6 +99,7 @@ func (s *Server) registerHost(ctx context.Context, request api.RegisterHostReq) 
 			host.Engines = info.Engines
 			host.Capabilities = info.Capabilities
 			host.CapabilityReport = info.CapabilityReport
+			host.StorageFeatures = info.StorageFeatures
 			host.Images = info.Images
 			host.ImageSizes = info.ImageSizes
 			host.State = model.HostOnline
@@ -115,7 +122,7 @@ func (s *Server) registerHost(ctx context.Context, request api.RegisterHostReq) 
 	if count >= model.MaxHosts {
 		return nil, 0, apiError(409, fmt.Sprintf("fleet limit reached (%d hosts)", model.MaxHosts))
 	}
-	host := model.Host{CapabilityReport: info.CapabilityReport, ImageSizes: info.ImageSizes, Capabilities: info.Capabilities, ID: info.HostID, Addr: request.Addr, Resource: info.Resource, State: model.HostOnline, Images: info.Images, Engines: info.Engines, Storage: info.Storage, RegisteredAt: s.now()}
+	host := model.Host{StorageFeatures: info.StorageFeatures, CapabilityReport: info.CapabilityReport, ImageSizes: info.ImageSizes, Capabilities: info.Capabilities, ID: info.HostID, Addr: request.Addr, Resource: info.Resource, State: model.HostOnline, Images: info.Images, Engines: info.Engines, Storage: info.Storage, RegisteredAt: s.now()}
 	if err := s.db.PutHost(ctx, &host); err != nil {
 		return nil, 0, internal(err)
 	}
@@ -185,5 +192,9 @@ func (s *Server) environmentDetail(ctx context.Context, id string) (api.EnvDetai
 	if env.Error != nil {
 		warnings = append(warnings, *env.Error)
 	}
-	return api.EnvDetail{Env: *env, VMs: vms, Warnings: warnings}, nil
+	revision, err := s.db.nextObservation(ctx)
+	if err != nil {
+		return api.EnvDetail{}, internal(err)
+	}
+	return api.EnvDetail{Env: *env, VMs: vms, Warnings: warnings, ObservationRevision: revision}, nil
 }

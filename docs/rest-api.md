@@ -2,6 +2,8 @@
 
 Both agent and controller APIs are implemented through phase 5. Their complete
 route contracts are listed in [compatibility.md](compatibility.md#3-http-surface).
+Optional command, volume, recovery, archive and epoch APIs are specified in
+[compatibility §10–15](compatibility.md#10-durable-command-envelope-optional-extension).
 Services use a shared bearer key when configured. There is no per-owner ACL.
 
 Successful responses use `{"ok":true,"data":...}`. Agent empty actions and
@@ -48,7 +50,9 @@ Read APIs use separate SQLite connections. Image scans run separately and publis
 cached results; a slow scan warns after five seconds and completes before another
 scan starts. Reconciliation and catalog refresh run at 15-second intervals.
 
-The agent accepts native schema v6 only. It does not repair unversioned or damaged
+The agent accepts structurally valid native schemas v6–v10 and migrates them
+forward to v10. The controller migrates compatible v5 state to v9. See the
+[optional protocol upgrade boundary](compatibility.md#10-durable-command-envelope-optional-extension). It does not repair unversioned or damaged
 state. JSON-corrupt VM records remain on disk, disable new admission and appear
 as a warning in `/api/info`; strict inventory queries still fail. Healthy records
 remain available for cleanup. Container runtime and network configuration are
@@ -74,7 +78,7 @@ proof of guest boot or application readiness.
 
 ## Controller coordination
 
-The controller stores native v5 state and migrates older versions by materializing
+The controller stores native v9 state and migrates older versions by materializing
 backup revisions without dropping unknown VM fields. It exposes fleet status,
 host registration/removal/detach, environments, VM resource updates and backup
 forwarding. The exact `/` dashboard route is public; API routes use configured

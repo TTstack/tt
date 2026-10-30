@@ -10,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/TTstack/tt/internal/auth"
+	"github.com/TTstack/tt/internal/command"
 	"github.com/TTstack/tt/internal/engine"
 	"github.com/TTstack/tt/internal/model"
 	"github.com/TTstack/tt/internal/runcmd"
@@ -30,6 +32,10 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 	}
 	if runtime.GOOS == "freebsd" {
 		fmt.Fprintln(stderr, "WARNING: FreeBSD support is experimental and outside the primary validation scope")
+	}
+	if cfg.AuthorityFile != "" && key == nil {
+		fmt.Fprintln(stderr, "receiver authority requires bearer authentication")
+		return 1
 	}
 	if err := os.MkdirAll(cfg.DataDir, 0777); err != nil {
 		fmt.Fprintf(stderr, "Failed to create data dir %s: %v\n", cfg.DataDir, err)
@@ -102,7 +108,47 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 	}
 	engine.SetStopGrace(cfg.StopGrace)
 	rt.ConfigureBackup(ctx, cfg.EnableDiskBackup)
+	if cfg.AuthorityFile != "" {
+		if !cfg.present["host-id"] {
+			fmt.Fprintln(stderr, "epoch receiver requires an explicit stable host identity")
+			return 1
+		}
+		authority, err := command.OpenAuthority(cfg.AuthorityFile)
+		if err != nil {
+			fmt.Fprintln(stderr, "cannot load receiver authority")
+			return 1
+		}
+		state, err := authority.State()
+		if err != nil {
+			fmt.Fprintln(stderr, "cannot load receiver authority")
+			return 1
+		}
+		parent, domainLock, err := engine.OpenProcessDomain(state.ID, host)
+		if err != nil {
+			fmt.Fprintln(stderr, "cannot establish exclusive payload cgroup domain")
+			return 1
+		}
+		defer domainLock.Close()
+		rt.processDomain = parent
+		rt.engineFactory = func(kind model.Engine, container *engine.ContainerRuntime) (engine.Engine, error) {
+			base, err := engine.New(kind, container)
+			if err != nil {
+				return nil, err
+			}
+			return engine.WithProcessDomain(base, parent)
+		}
+		rt.processEpochOnly = true
+		rt.engines = slices.DeleteFunc(append([]model.Engine{}, rt.engines...), func(value model.Engine) bool { return value != model.Qemu && value != model.Firecracker })
+	}
 	server := newServer(rt, path)
+	if err = server.commandJournal.SetAuthority(cfg.AuthorityFile); err != nil {
+		fmt.Fprintln(stderr, "cannot load receiver authority")
+		return 1
+	}
+	if err = server.loadQuarantine(ctx); err != nil {
+		fmt.Fprintln(stderr, "cannot restore external quarantine reservations")
+		return 1
+	}
 	if key != nil {
 		fmt.Fprintln(stderr, "API key authentication enabled")
 	} else {
@@ -137,6 +183,9 @@ func serveAgent(ctx context.Context, cfg Config, stderr io.Writer) int {
 	}
 	loop(server.RefreshImages)
 	loop(func(loopCtx context.Context) {
+		if !server.commandJournal.MutationsAllowed() {
+			return
+		}
 		if err := server.ReconcileOnce(loopCtx); err != nil {
 			fmt.Fprintf(stderr, "[agent] reconciliation failed: %v\n", err)
 		}

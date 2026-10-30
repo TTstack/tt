@@ -39,7 +39,7 @@ def guest_ssh(ip,command):
 for name in ['agent-zvol','ctl-zvol']:(base/name).mkdir(exist_ok=True)
 agent_args=['--listen','127.0.0.1:19100','--host-id','native-freebsd-zvol','--data-dir',str(base/'agent-zvol'),'--image-dir','zroot/tt-go-port-6426-native/images','--runtime-dir','zroot/tt-go-port-6426-native/runtime','--storage','zvol','--enable-disk-backup','--cpu-total','2','--mem-total','2048','--disk-total','16384']
 ctl_args=['--listen','127.0.0.1:19200','--data-dir',str(base/'ctl-zvol')]
-go=root/'bin';rust=root/'rust-target/debug'
+go=root/'bin';rust=go if os.environ.get('TT_NATIVE_GO_ONLY')=='1' else root/'rust-target/debug'
 try:
  agent=start(go/'tt-agent',agent_args,19100,'/api/info','go-zvol-agent')
  controller=start(rust/'tt-ctl',ctl_args,19200,'/api/status','rust-zvol-ctl')
@@ -69,7 +69,7 @@ try:
  cli(rust/'tt',['env','backup','delete',vmid]);cli(rust/'tt',['env','delete',name])
  remaining=subprocess.check_output(['zfs','list','-H','-o','name','-r','zroot/tt-go-port-6426-native/runtime'],text=True).splitlines()
  assert remaining==['zroot/tt-go-port-6426-native/runtime'],remaining
- print('bhyve zvol: real SSH, refresh, restore, cross-language takeover, exact replay preserving later writes and cleanup passed',flush=True)
+ print('bhyve zvol: real SSH, refresh, restore, service takeover, exact replay preserving later writes and cleanup passed',flush=True)
 finally:
  for process,log in reversed(processes):
   if process.poll() is None:

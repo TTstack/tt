@@ -1,7 +1,7 @@
 """Bounded native VM/reflink acceptance inside the private Linux lab."""
 import http.client,json,os,pathlib,socket,subprocess,time,uuid
 assert b'/tmp/tt-go-port-6426/lab-server.py\x00' in pathlib.Path('/proc/1/cmdline').read_bytes(), 'run only inside the owned lab'
-root=pathlib.Path('/tmp/tt-go-port-6426');go=root/'bin';rust=root/'rust-target/debug';key=uuid.uuid4().hex;processes=[]
+root=pathlib.Path('/tmp/tt-go-port-6426');go=root/'bin';rust=go if os.environ.get('TT_NATIVE_GO_ONLY')=='1' else root/'rust-target/debug';key=uuid.uuid4().hex;processes=[]
 def call(port,method,path,body=None):
  connection=http.client.HTTPConnection('127.0.0.1',port,timeout=240);headers={'Authorization':'Bearer '+key}
  if body is not None:headers['Content-Type']='application/json';body=json.dumps(body)
@@ -52,7 +52,17 @@ try:
  vm=call(19200,'GET','/api/envs/'+name)['vms'][0];vmid=vm['id'];assert marker(vm,'first')=='first';cli(go/'tt',['env','stop',name])
  state=call(19200,'GET','/api/vms/'+vmid+'/backup')['vm']['backup'];operation=str(uuid.uuid4());revision=state['revision']
  request=f'PUT /api/vms/{vmid}/backup HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {key}\r\nIdempotency-Key: {operation}\r\nIf-Match: "{revision}"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
- connection=socket.create_connection(('127.0.0.1',19200));connection.sendall(request.encode());connection.shutdown(socket.SHUT_WR);connection.close()
+ connection=socket.create_connection(('127.0.0.1',19200));connection.sendall(request.encode())
+ # Closing before HTTP admission can legitimately cancel an unread request.
+ # First establish durable acceptance without consuming the submitter's reply.
+ deadline=time.monotonic()+60
+ while True:
+  admitted=call(19200,'GET','/api/vms/'+vmid+'/backup')['vm']['backup']
+  pending=admitted.get('pending') or {};last=admitted.get('last_result') or {}
+  if pending.get('request',{}).get('operation_id')==operation or last.get('request',{}).get('operation_id')==operation or admitted.get('current'):break
+  if time.monotonic()>deadline:raise RuntimeError('backup submission was not durably admitted')
+  time.sleep(.02)
+ connection.close()
  deadline=time.monotonic()+60
  while True:
   state=call(19200,'GET','/api/vms/'+vmid+'/backup')['vm']['backup']
@@ -72,7 +82,7 @@ try:
  subprocess.run(['zfs','release','ttgo6426-test',snapshot],check=True)
  cli(rust/'tt',['env','backup','delete',vmid]);cli(rust/'tt',['env','delete',name])
  assert subprocess.run(['zfs','list','ttgo6426/runtime/clone-'+vmid],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0
- print('Native ZFS: disconnected submission settled, Rust exact retry preserved generation, held retired snapshot retained reservation without blocking refresh/restore, release and cleanup passed',flush=True)
+ print('Native ZFS: disconnected submission settled, exact retry preserved generation, held retired snapshot retained reservation without blocking refresh/restore, release and cleanup passed',flush=True)
 finally:
  for process,log in reversed(processes):
   if process.poll() is None:

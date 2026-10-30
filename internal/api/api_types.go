@@ -17,9 +17,19 @@ type CreateVmReq struct {
 	GuestConfig     model.GuestConfig  `json:"guest_config,omitempty"`
 	SSHKeys         model.List[string] `json:"ssh_keys,omitempty"`
 	SSH             *model.SshOptions  `json:"ssh,omitempty"`
+	RootVolumeID    string             `json:"root_volume_id,omitempty"`
+	DataVolumeIDs   model.List[string] `json:"data_volume_ids,omitempty"`
+	DurableRoot     bool               `json:"durable_root,omitempty"`
+	RootRetain      *bool              `json:"root_retain,omitempty"`
+	HostID          string             `json:"host_id,omitempty"`
+	InitialStopped  bool               `json:"initial_stopped,omitempty"`
+	VolumeOwner     string             `json:"volume_owner,omitempty"`
 }
 
 func (v *CreateVmReq) UnmarshalJSON(data []byte) error {
+	if err := model.CheckLegacySequence(data, 13); err != nil {
+		return err
+	}
 	type plain CreateVmReq
 	var next plain
 	if err := model.DecodeRecord(data, &next, []string{"vm_id", "env_id", "image", "engine", "cpu", "mem", "disk", "ports", "deny_outgoing"}, false); err != nil {
@@ -54,9 +64,13 @@ type AgentInfo struct {
 	Engines          model.List[model.Engine]  `json:"engines"`
 	Storage          model.Storage             `json:"storage"`
 	Images           model.List[string]        `json:"images"`
+	StorageFeatures  *model.StorageFeatures    `json:"storage_features,omitempty"`
 }
 
 func (v *AgentInfo) UnmarshalJSON(data []byte) error {
+	if err := model.CheckLegacySequence(data, 10); err != nil {
+		return err
+	}
 	type plain AgentInfo
 	var next plain
 	if err := model.DecodeRecord(data, &next, []string{"host_id", "resource", "engines", "storage", "images"}, false); err != nil {
@@ -78,9 +92,18 @@ type VmSpec struct {
 	GuestConfig     model.GuestConfig  `json:"guest_config,omitempty"`
 	SSHKeys         model.List[string] `json:"ssh_keys,omitempty"`
 	SSH             *model.SshOptions  `json:"ssh,omitempty"`
+	RootVolumeID    string             `json:"root_volume_id,omitempty"`
+	DataVolumeIDs   model.List[string] `json:"data_volume_ids,omitempty"`
+	DurableRoot     bool               `json:"durable_root,omitempty"`
+	RootRetain      *bool              `json:"root_retain,omitempty"`
+	HostID          string             `json:"host_id,omitempty"`
+	InitialStopped  bool               `json:"initial_stopped,omitempty"`
 }
 
 func (v *VmSpec) UnmarshalJSON(data []byte) error {
+	if err := model.CheckLegacySequence(data, 11); err != nil {
+		return err
+	}
 	type plain VmSpec
 	var next plain
 	next.Engine = model.Qemu
@@ -110,12 +133,16 @@ func (v *CreateEnvReq) UnmarshalJSON(data []byte) error {
 }
 
 type EnvDetail struct {
-	Env      model.Env            `json:"env"`
-	VMs      model.List[model.Vm] `json:"vms"`
-	Warnings model.List[string]   `json:"warnings,omitempty"`
+	Env                 model.Env            `json:"env"`
+	VMs                 model.List[model.Vm] `json:"vms"`
+	Warnings            model.List[string]   `json:"warnings,omitempty"`
+	ObservationRevision uint64               `json:"observation_revision,omitempty"`
 }
 
 func (v *EnvDetail) UnmarshalJSON(data []byte) error {
+	if err := model.CheckLegacySequence(data, 3); err != nil {
+		return err
+	}
 	type plain EnvDetail
 	var next plain
 	if err := model.DecodeRecord(data, &next, []string{"env", "vms"}, false); err != nil {

@@ -25,6 +25,7 @@ import (
 var help string
 
 type Config struct {
+	AuthorityFile                                                         string
 	EnableDiskBackup                                                      bool
 	ContainerRuntime, SSHPublicAddress, SSHIngressNetNS, SSHIngressTarget string
 	PortStart, PortEnd                                                    uint
@@ -49,6 +50,7 @@ func parseConfig(args []string, stdout, stderr io.Writer) (Config, bool, int) {
 	fs.StringVar(&cfg.Listen, "listen", "0.0.0.0:9100", "Listen address for the HTTP API")
 	fs.StringVar(&cfg.ImageDir, "image-dir", "/home/ttstack/images", "Base image directory or dataset")
 	fs.StringVar(&cfg.RuntimeDir, "runtime-dir", "/home/ttstack/runtime", "Runtime clone directory or dataset")
+	fs.StringVar(&cfg.AuthorityFile, "authority-file", "", "Private deployment authority file outside database restore scope")
 	fs.StringVar(&cfg.DataDir, "data-dir", "/home/ttstack/data", "Directory for persistent state")
 	fs.StringVar(&cfg.Storage, "storage", "file", "Storage backend")
 	commandline.UintVar(fs, &cfg.CPUTotal, "cpu-total", 0, 32, "CPU capacity; 0 = auto-detect")

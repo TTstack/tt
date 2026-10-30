@@ -19,6 +19,8 @@ import (
 )
 
 type Firecracker struct {
+	controlParent      string
+	gracefulOnly       bool
 	runDir, cgroupRoot string
 	processes          processes
 	chown              func(string, int, int) error
@@ -42,6 +44,9 @@ func firecrackerConfiguration(vm *model.Vm, mac string) map[string]any {
 	drives := []map[string]any{{"drive_id": "rootfs", "path_on_host": "/rootfs.ext4", "is_root_device": true, "is_read_only": false}}
 	if vm.Options.ConfigDiskMiB(vm.Engine) > 0 {
 		drives = append(drives, map[string]any{"drive_id": "config", "path_on_host": "/guest-config.ext4", "is_root_device": false, "is_read_only": true})
+	}
+	for index := range vm.Options.DataVolumes {
+		drives = append(drives, map[string]any{"drive_id": fmt.Sprintf("data-%d", index), "path_on_host": fmt.Sprintf("/data-%d.raw", index), "is_root_device": false, "is_read_only": false})
 	}
 	return map[string]any{
 		"boot-source":        map[string]any{"kernel_image_path": "/vmlinux", "boot_args": "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/sbin/init ip=" + vm.IP + "::10.10.0.1:255.255.0.0::eth0:off"},
@@ -233,9 +238,11 @@ func (f *Firecracker) Stop(ctx context.Context, vm *model.Vm) error {
 	if err != nil || !match {
 		return err
 	}
-	if state, err := f.State(ctx, vm); err == nil && state == model.VmPaused {
+	if state, err := f.State(ctx, vm); err == nil && state == model.VmPaused && f.stopGrace > 0 {
 		if err := f.Start(ctx, vm); err != nil {
-			fmt.Fprintf(os.Stderr, "[firecracker] %s: resume failed (%v); forcing stop\n", vm.ID, err)
+			if f.gracefulOnly {
+				return gracefulTimeout()
+			}
 			return f.processes.terminate(ctx, pid, marker)
 		}
 	}
@@ -253,6 +260,9 @@ func (f *Firecracker) Stop(ctx context.Context, vm *model.Vm) error {
 				}
 			}
 		}
+	}
+	if f.gracefulOnly {
+		return gracefulTimeout()
 	}
 	fmt.Fprintf(os.Stderr, "[firecracker] %s: graceful shutdown unavailable or timed out; forcing stop\n", vm.ID)
 	return f.processes.terminate(ctx, pid, marker)
@@ -316,4 +326,11 @@ func (f *Firecracker) State(ctx context.Context, vm *model.Vm) (model.VmState, e
 	default:
 		return "", fmt.Errorf("unexpected Firecracker state")
 	}
+}
+
+func (f *Firecracker) withStopPolicy(options model.StopOptions) Engine {
+	clone := *f
+	clone.stopGrace = policyGrace(f.stopGrace, options)
+	clone.gracefulOnly = options.GracefulOnly
+	return &clone
 }

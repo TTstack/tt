@@ -161,7 +161,7 @@ func dataDiagnostic(data []byte, t reflect.Type, err error, path string, base in
 		var items []json.RawMessage
 		_ = json.Unmarshal(data, &items)
 		if strings.HasPrefix(message, "missing ") || message == "too many sequence fields" {
-			return prefixPath(path, fmt.Sprintf("invalid length %d, expected struct %s with %d elements", len(items), t.Name(), t.NumField())), base + len(data), 422
+			return prefixPath(path, fmt.Sprintf("invalid length %d, expected struct %s with %d elements", len(items), t.Name(), positionalFieldCount(t))), base + len(data), 422
 		}
 	}
 	if field, ok := quotedErrorField(message, "missing field "); ok {
@@ -399,4 +399,27 @@ func earlyDataDiagnostic(data []byte, t reflect.Type, path string, base int) (st
 		}
 	}
 	return "", 0, 0, false
+}
+
+func positionalFieldCount(t reflect.Type) int {
+	switch t.Name() {
+	case "CreateVmReq":
+		return 13
+	case "VmSpec":
+		return 11
+	case "VmOptions":
+		return 7
+	case "EnvDetail":
+		return 3
+	case "AgentInfo":
+		return 10
+	case "Host":
+		return 12
+	case "Env":
+		return 7
+	}
+	if strings.HasPrefix(t.Name(), "Resp[") {
+		return 3
+	}
+	return t.NumField()
 }

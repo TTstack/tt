@@ -25,6 +25,12 @@ type Engine interface {
 	Name() string
 }
 
+// StateObserver supplies bounded evidence without repairing runtime files,
+// starting workloads, changing networking or replaying persistent intent.
+type StateObserver interface {
+	ObserveState(context.Context, *model.Vm) (model.VmState, error)
+}
+
 type ContainerRuntime string
 
 const (
@@ -104,13 +110,6 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 	}
 }
 func exists(path string) bool { _, err := os.Stat(path); return err == nil }
-func tryExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return err == nil, err
-}
 
 // parentPath preserves an empty relative parent. filepath.Dir("root") == "."
 // must never turn malformed metadata into deletion of the current directory.

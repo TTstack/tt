@@ -794,14 +794,6 @@ func privateDir(path string) error {
 	}
 	return nil
 }
-func syncDirectory(path string) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	return file.Sync()
-}
 func atomicWrite(path string, data []byte) error {
 	parent := filepath.Dir(path)
 	file, err := os.CreateTemp(parent, ".backup-*")

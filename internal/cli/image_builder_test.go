@@ -44,7 +44,7 @@ func TestFailedDownloadKeepsPreviousImageAndSuccessPublishesAtomically(t *testin
 					w.Header().Set("Content-Length", "100")
 					fmt.Fprint(w, "partial")
 				case "http-error":
-					http.Error(w, "failed", 503)
+					http.Error(w, "failed", http.StatusServiceUnavailable)
 				case "oversized":
 					w.Header().Set("Content-Length", "8589934593")
 				default:

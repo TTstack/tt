@@ -46,6 +46,7 @@ func ResolveOptions(e model.Engine, requested *model.SshOptions, keys []string) 
 		if options == model.DefaultSshOptions() {
 			return nil, nil
 		}
+		//lint:ignore ST1005 Preserve the pinned compatibility diagnostic.
 		return nil, fmt.Errorf("Jail supports only root SSH keys without SSH bootstrap options")
 	}
 	return nil, fmt.Errorf("SSH bootstrap is not supported by %s", e)
@@ -129,6 +130,7 @@ func PreparedRootfs(ctx context.Context, path string) error {
 		return fmt.Errorf("inspect SSH image support: %w", err)
 	}
 	if !output.Success() || strings.Trim(string(output.Stdout), " \t\n\r\x0c") != "1" {
+		//lint:ignore ST1005 Preserve the pinned compatibility diagnostic.
 		return fmt.Errorf("Firecracker image requires TTstack SSH bootstrap version 1")
 	}
 	return nil

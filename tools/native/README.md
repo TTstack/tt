@@ -9,6 +9,10 @@ use a new scope or inspect retained state before repeating a failed run.
 The scripts preserve the tested phase-7 scenarios. They expect Go executables in
 `bin/` and the pinned Rust executables in `rust-target/debug/` below that directory.
 Build those from the revisions recorded in [the validation reports](../../docs/validation/).
+For current optional-protocol binaries, set `TT_NATIVE_GO_ONLY=1` in the lab
+environment; service restarts then use the Go binaries throughout. Rust takeover
+requires the pre-extension baseline and its compatible v5/v6 databases. It must
+not be attempted against a migrated v9/v10 database.
 The reference is 0.6.0 at `1ad83a9feed5fac820d74b5e7ef752e50a552740`.
 
 ## Linux layout and bounds
@@ -60,7 +64,8 @@ python3 /tmp/tt-go-port-6426/lab-call.py \
 | `systemd-driver.py` | File scope; a further isolated PID 1, root, network, UTS and IPC namespace, readonly `/usr` and global sysctls, private unit catalog, 1 CPU/2 GiB sub-budget; executes `systemd-workflow.py` |
 
 `TT_NATIVE_ENGINES=qemu` or `firecracker` selects one VM family. The default tests
-both. A transient unreadable process identity is recorded and the *same stop*
+both. The extension harnesses also import `native_request.py`; copy it beside them.
+A transient unreadable process identity is recorded and the *same stop*
 is retried after inspection; backup mutations always reuse their explicit UUID
 and revision when replayed. A failed run retains the service state/disks needed
 for diagnosis instead of silently discarding the evidence.

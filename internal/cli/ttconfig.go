@@ -91,5 +91,6 @@ func resolveConfig(server, key *string, saved *cliConfig) (string, *string, erro
 		}
 		return saved.address, selected, nil
 	}
+	//lint:ignore ST1005 Preserve the pinned compatibility diagnostic.
 	return "", nil, fmt.Errorf("No controller address. Run: tt config <addr>")
 }

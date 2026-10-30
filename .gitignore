@@ -39,3 +39,7 @@ go.work.sum
 *.db-wal
 *.api-key
 /deploy.toml
+
+# Native validation Python bytecode
+__pycache__/
+*.pyc

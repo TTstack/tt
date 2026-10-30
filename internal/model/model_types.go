@@ -34,9 +34,13 @@ type Host struct {
 	Images           List[string]        `json:"images"`
 	Storage          Storage             `json:"storage"`
 	RegisteredAt     uint64              `json:"registered_at"`
+	StorageFeatures  *StorageFeatures    `json:"storage_features,omitempty"`
 }
 
 func (v *Host) UnmarshalJSON(data []byte) error {
+	if err := CheckLegacySequence(data, 12); err != nil {
+		return err
+	}
 	type plain Host
 	var next plain
 	if err := DecodeRecord(data, &next, []string{"id", "addr", "resource", "state", "engines", "storage", "registered_at"}, false); err != nil {
@@ -94,16 +98,25 @@ func (v *VmResources) UnmarshalJSON(data []byte) error {
 }
 
 type VmOptions struct {
-	SSH               *SshOptions  `json:"ssh,omitempty"`
-	Ports             List[uint16] `json:"ports"`
-	SSHKeys           List[string] `json:"ssh_keys"`
-	DenyOutgoing      bool         `json:"deny_outgoing"`
-	RequestedDisk     uint32       `json:"requested_disk"`
-	IsolatedNetwork   bool         `json:"isolated_network"`
-	GuestConfigDigest *string      `json:"guest_config_digest,omitempty"`
+	SSH               *SshOptions          `json:"ssh,omitempty"`
+	Ports             List[uint16]         `json:"ports"`
+	SSHKeys           List[string]         `json:"ssh_keys"`
+	DenyOutgoing      bool                 `json:"deny_outgoing"`
+	RequestedDisk     uint32               `json:"requested_disk"`
+	IsolatedNetwork   bool                 `json:"isolated_network"`
+	GuestConfigDigest *string              `json:"guest_config_digest,omitempty"`
+	RootVolumeID      string               `json:"root_volume_id,omitempty"`
+	DataVolumes       List[DiskAttachment] `json:"data_volumes,omitempty"`
+	InitialStopped    bool                 `json:"initial_stopped,omitempty"`
+	RootManaged       bool                 `json:"root_managed,omitempty"`
+	RootDiskCharge    uint32               `json:"root_disk_charge,omitempty"`
+	CreationComplete  bool                 `json:"creation_complete,omitempty"`
 }
 
 func (v *VmOptions) UnmarshalJSON(data []byte) error {
+	if err := CheckLegacySequence(data, 7); err != nil {
+		return err
+	}
 	type plain VmOptions
 	var next plain
 	if err := DecodeRecord(data, &next, []string{"ports", "ssh_keys", "deny_outgoing", "requested_disk"}, false); err != nil {
@@ -114,16 +127,20 @@ func (v *VmOptions) UnmarshalJSON(data []byte) error {
 }
 
 type Env struct {
-	ID        string       `json:"id"`
-	Owner     string       `json:"owner"`
-	VmIds     List[string] `json:"vm_ids"`
-	CreatedAt uint64       `json:"created_at"`
-	ExpiresAt uint64       `json:"expires_at"`
-	Error     *string      `json:"error"`
-	State     EnvState     `json:"state"`
+	ID           string       `json:"id"`
+	Owner        string       `json:"owner"`
+	VmIds        List[string] `json:"vm_ids"`
+	CreatedAt    uint64       `json:"created_at"`
+	ExpiresAt    uint64       `json:"expires_at"`
+	Error        *string      `json:"error"`
+	State        EnvState     `json:"state"`
+	CreationHash string       `json:"creation_hash,omitempty"`
 }
 
 func (v *Env) UnmarshalJSON(data []byte) error {
+	if err := CheckLegacySequence(data, 7); err != nil {
+		return err
+	}
 	type plain Env
 	var next plain
 	if err := DecodeRecord(data, &next, []string{"id", "owner", "vm_ids", "created_at", "expires_at", "state"}, false); err != nil {

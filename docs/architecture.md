@@ -41,16 +41,18 @@ internal/
   backup       backup request validation, replay/preconditions, status mapping
   guestconfig  opaque guest files: validation, SHA-256 digest, ext4 config disk
   sshboot      SSH option resolution, seed script generation, readiness probes
+  command      durable command receipts, receiver watermarks and forwarding context
   auth         API key parsing/compare and the bearer middleware
   runcmd       bounded command execution, output capture, polling helpers
   engine       Engine interface + factory, PID recovery/termination,
                qemu.go firecracker.go sandbox.go docker.go bhyve.go jail.go
   netcfg       bridge/TAP/NAT/DNAT (Linux), isolation, FreeBSD PF, TAP naming
-  storage      ImageStore interface, file.go zvol.go, backup.go (artifacts)
+  storage      ImageStore interface, file.go zvol.go, backup.go (artifacts),
+               volume.go (independent disk/checkpoint primitives)
   agent        runtime.go (lifecycle), handler.go (HTTP), backup.go (worker),
-               sshingress.go, config.go
+               sshingress.go, volume.go/volume_binding.go/volume_http.go, config.go
   ctl          db.go, scheduler.go, handler.go, web.go (dashboard), backup.go
-               (forwarding), config.go
+               (forwarding), volume*.go (admission/catalog/forwarding), config.go
   cli          client.go, root.go + per-command files, deploy.go, imagebuilder.go,
                ttconfig.go
 ```
@@ -71,7 +73,7 @@ capability -> model
 backup -> model
 guestconfig -> model, capability, runcmd
 sshboot -> model, capability, guestconfig, runcmd
-auth -> api
+auth / command -> api
 engine / netcfg / storage -> shared packages (never agent / ctl / cli)
 agent / ctl / cli -> shared packages (never each other)
 cmd/* -> its component package
@@ -258,7 +260,7 @@ One published recovery point per VM, with durable operations:
 
 ## 9. Controller
 
-- **Database**: `<data-dir>/ctl.db`, schema v5. Tables `_meta`, `hosts`, `envs`,
+- **Database**: `<data-dir>/ctl.db`, schema v9 (forward migration from v5). Tables `_meta`, `hosts`, `envs`,
   `vms` (id + JSON blob, plus `env_id`/`host_id` columns and indices). A newer
   schema refuses to open; the v5 migration materializes a stable backup revision
   per VM.

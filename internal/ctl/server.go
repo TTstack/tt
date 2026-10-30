@@ -2,7 +2,10 @@ package ctl
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/TTstack/tt/internal/api"
+	"github.com/TTstack/tt/internal/command"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -12,29 +15,37 @@ import (
 type APIError struct {
 	Status  int
 	Message string
+	Failure *api.BoundaryError
 }
 
-func (e *APIError) Error() string                   { return e.Message }
-func apiError(status int, message string) *APIError { return &APIError{status, message} }
+func (e *APIError) Error() string { return e.Message }
+func apiError(status int, message string) *APIError {
+	return &APIError{Status: status, Message: message}
+}
 func internal(err error) *APIError {
 	if err == nil {
 		return nil
+	}
+	var typed *api.BoundaryError
+	if errors.As(err, &typed) {
+		return &APIError{Status: typed.Status(), Message: typed.Message, Failure: typed}
 	}
 	return apiError(500, err.Error())
 }
 
 type Server struct {
-	db            *DB
-	dbMu          sync.Mutex
-	operationsMu  sync.Mutex
-	operations    map[string]bool
-	revision      atomic.Uint64
-	apiKey        *string
-	stderr        io.Writer
-	workCtx       context.Context
-	workers       sync.WaitGroup
-	now           func() uint64
-	clientFactory func(time.Duration) (*agentClient, error)
+	commandJournal *command.Journal
+	db             *DB
+	dbMu           sync.Mutex
+	operationsMu   sync.Mutex
+	operations     map[string]bool
+	revision       atomic.Uint64
+	apiKey         *string
+	stderr         io.Writer
+	workCtx        context.Context
+	workers        sync.WaitGroup
+	now            func() uint64
+	clientFactory  func(time.Duration) (*agentClient, error)
 }
 
 func newServer(db *DB, key *string) *Server {
@@ -45,6 +56,7 @@ func newServer(db *DB, key *string) *Server {
 		}
 		return uint64(n)
 	}}
+	s.commandJournal = command.New(db.conn, &s.dbMu)
 	s.clientFactory = func(timeout time.Duration) (*agentClient, error) { return newAgentClient(key, timeout) }
 	return s
 }

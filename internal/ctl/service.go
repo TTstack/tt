@@ -24,6 +24,10 @@ func serveController(ctx context.Context, cfg Config, stderr io.Writer) int {
 			return 1
 		}
 	}
+	if cfg.AuthorityFile != "" && key == nil {
+		fmt.Fprintln(stderr, "receiver authority requires bearer authentication")
+		return 1
+	}
 	if err := os.MkdirAll(cfg.DataDir, 0777); err != nil {
 		fmt.Fprintf(stderr, "Failed to create data dir %s: %v\n", cfg.DataDir, err)
 		return 1
@@ -42,6 +46,10 @@ func serveController(ctx context.Context, cfg Config, stderr io.Writer) int {
 	defer db.Close()
 	db.stderr = stderr
 	state := newServer(db, key)
+	if err = state.commandJournal.SetAuthority(cfg.AuthorityFile); err != nil {
+		fmt.Fprintln(stderr, "cannot load receiver authority")
+		return 1
+	}
 	work, stopWork := context.WithCancel(context.Background())
 	state.workCtx = work
 	defer stopWork()
@@ -74,7 +82,9 @@ func serveController(ctx context.Context, cfg Config, stderr io.Writer) int {
 				timer.Stop()
 				return
 			case <-timer.C:
-				state.ExpireOnce(background)
+				if state.commandJournal.Authority == nil {
+					state.ExpireOnce(background)
+				}
 			}
 		}
 	}()
@@ -84,7 +94,9 @@ func serveController(ctx context.Context, cfg Config, stderr io.Writer) int {
 			if background.Err() != nil {
 				return
 			}
-			state.RefreshAllHosts(background, reader)
+			if state.commandJournal.MutationsAllowed() {
+				state.RefreshAllHosts(background, reader)
+			}
 			timer := time.NewTimer(15 * time.Second)
 			select {
 			case <-background.Done():

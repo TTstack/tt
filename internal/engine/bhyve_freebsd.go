@@ -32,6 +32,17 @@ func (b *Bhyve) artifact(vm *model.Vm, suffix string) string {
 	return filepath.Join(b.runDir, "bhyve-"+vm.ID+"."+suffix)
 }
 func (b *Bhyve) device(vm *model.Vm) string { return filepath.Join(b.deviceDir, vm.ID) }
+
+// The FreeBSD device path must distinguish absence from an inspection failure.
+// Linux's observational paths no longer use this helper.
+func tryExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func processListing(ctx context.Context) (string, error) {
 	out, err := runcmd.Run(ctx, "ps", "-axww", "-o", "pid=", "-o", "stat=", "-o", "comm=", "-o", "args=")
 	if err != nil {

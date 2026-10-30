@@ -128,7 +128,11 @@ func (f *Firecracker) prepareSandbox(ctx context.Context, vm *model.Vm, image st
 	}
 	id := netcfg.TapName(vm.ID)
 	base := filepath.Join(parent, ".jailer")
-	s := &sandbox{Root: filepath.Join(base, filepath.Base(binary), id, "root"), Marker: "/fc-" + id + ".sock", Cgroup: filepath.Join(f.cgroupRoot, "ttstack", id)}
+	parentGroup := "ttstack"
+	if f.controlParent != "" {
+		parentGroup = f.controlParent
+	}
+	s := &sandbox{Root: filepath.Join(base, filepath.Base(binary), id, "root"), Marker: "/fc-" + id + ".sock", Cgroup: filepath.Join(f.cgroupRoot, parentGroup, id)}
 	if len(s.socket()) >= 108 {
 		return nil, nil, fmt.Errorf("runtime directory is too long for a Firecracker Unix socket; use a shorter --runtime-dir")
 	}
@@ -173,6 +177,24 @@ func (f *Firecracker) prepareSandbox(ctx context.Context, vm *model.Vm, image st
 			return nil, nil, fmt.Errorf("guest file permissions: %w", err)
 		}
 	}
+	for index, disk := range vm.Options.DataVolumes {
+		if disk.Format != "raw" {
+			return nil, nil, fmt.Errorf("data volume must use raw format")
+		}
+		target := filepath.Join(s.Root, fmt.Sprintf("data-%d.raw", index))
+		if err := removeFile(target); err != nil {
+			return nil, nil, err
+		}
+		if err := stageMember(disk.Path, target, true); err != nil {
+			return nil, nil, err
+		}
+		if err := f.chown(target, int(uid), int(uid)); err != nil {
+			return nil, nil, err
+		}
+		if err := os.Chmod(target, 0600); err != nil {
+			return nil, nil, err
+		}
+	}
 	if err := removeFile(s.socket()); err != nil {
 		return nil, nil, err
 	}
@@ -192,6 +214,6 @@ func (f *Firecracker) prepareSandbox(ctx context.Context, vm *model.Vm, image st
 		return nil, nil, err
 	}
 	uidText := strconv.FormatUint(uint64(uid), 10)
-	cmd := exec.Command(jailer, "--id", id, "--exec-file", binary, "--uid", uidText, "--gid", uidText, "--chroot-base-dir", base, "--cgroup-version", "2", "--parent-cgroup", "ttstack", "--cgroup", fmt.Sprintf("cpu.max=%d 100000", uint64(vm.CPU)*100000), "--cgroup", fmt.Sprintf("memory.max=%d", (uint64(vm.Mem)+128)*1024*1024), "--cgroup", "memory.swap.max=0", "--cgroup", fmt.Sprintf("pids.max=%d", 64+uint64(vm.CPU)*2), "--", "--api-sock", s.Marker, "--config-file", "/config.json")
+	cmd := exec.Command(jailer, "--id", id, "--exec-file", binary, "--uid", uidText, "--gid", uidText, "--chroot-base-dir", base, "--cgroup-version", "2", "--parent-cgroup", parentGroup, "--cgroup", fmt.Sprintf("cpu.max=%d 100000", uint64(vm.CPU)*100000), "--cgroup", fmt.Sprintf("memory.max=%d", (uint64(vm.Mem)+128)*1024*1024), "--cgroup", "memory.swap.max=0", "--cgroup", fmt.Sprintf("pids.max=%d", 64+uint64(vm.CPU)*2), "--", "--api-sock", s.Marker, "--config-file", "/config.json")
 	return s, cmd, nil
 }

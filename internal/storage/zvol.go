@@ -163,12 +163,8 @@ func (s ZvolStore) CloneImage(ctx context.Context, base, target string) (err err
 			return err
 		}
 		created = append(created, target+"/rootfs")
-		disk, err := s.device(ctx, target+"/rootfs")
-		if err != nil {
+		if err := rewireZvolRoot(ctx, s, target, dir); err != nil {
 			return err
-		}
-		if err := os.Symlink(disk, filepath.Join(dir, "rootfs.ext4")); err != nil {
-			return fmt.Errorf("link Firecracker root volume: %w", err)
 		}
 	} else {
 		if _, err := zfsCommand(ctx, "clone", "-o", "readonly=off", "-o", "volmode=dev", snap, target); err != nil {
@@ -224,7 +220,20 @@ func (s ZvolStore) ListImages(ctx context.Context, base string) ([]string, error
 	return images, nil
 }
 func (ZvolStore) ImageExists(ctx context.Context, path string) (bool, error) {
-	return zfsOK(ctx, "list", "-H", path), nil
+	index := strings.LastIndexByte(path, '/')
+	if index < 0 {
+		return false, fmt.Errorf("expected parent dataset and image name")
+	}
+	names, err := zfsCommand(ctx, "list", "-H", "-o", "name", "-r", "-d", "1", path[:index])
+	if err != nil {
+		return false, err
+	}
+	for _, name := range strings.Split(names, "\n") {
+		if name == path {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 func (ZvolStore) ResolveDisk(ctx context.Context, path string) (string, error) {
 	return "/dev/zvol/" + path, nil
@@ -278,6 +287,7 @@ func (ZvolStore) FirecrackerSize(ctx context.Context, path string) (uint64, erro
 	}
 	info, err := os.Lstat(filepath.Join(dir, "vmlinux"))
 	if err != nil || !info.Mode().IsRegular() {
+		//lint:ignore ST1005 Preserve the pinned compatibility diagnostic.
 		return 0, fmt.Errorf("Firecracker ZFS image requires a regular vmlinux")
 	}
 	return zvolSize(ctx, path+"/rootfs")

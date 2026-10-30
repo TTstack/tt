@@ -40,7 +40,7 @@ for name in ['agent','ctl','runtime']:(base/name).mkdir(exist_ok=True)
 if not (base/'guest-key').exists():subprocess.run(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(base/'guest-key')],check=True)
 agent_args=['--listen','127.0.0.1:19100','--host-id','native-freebsd','--data-dir',str(base/'agent'),'--image-dir',str(base/'images'),'--runtime-dir',str(base/'runtime'),'--cpu-total','2','--mem-total','2048','--disk-total','16384']
 ctl_args=['--listen','127.0.0.1:19200','--data-dir',str(base/'ctl')]
-go=root/'bin';rust=root/'rust-target/debug'
+go=root/'bin';rust=go if os.environ.get('TT_NATIVE_GO_ONLY')=='1' else root/'rust-target/debug'
 try:
  agent=start(go/'tt-agent',agent_args,19100,'/api/info','go-agent')
  controller=start(go/'tt-ctl',ctl_args,19200,'/api/status','go-ctl')
@@ -71,7 +71,7 @@ try:
   cli(cli_bin,['env','start',name]);assert guest_ssh(ip,'cat /root/tt-marker')=='retained'
   cli(cli_bin,['env','delete',name]);assert not (base/'runtime'/('clone-'+vmid)).exists()
   assert not pathlib.Path('/home/ttstack/run/jail-'+vmid+'.root').exists()
-  print(name+': real SSH, Go/Rust live takeover, cold stop/start and deletion passed',flush=True)
+  print(name+': real SSH, service takeover, cold stop/start and deletion passed',flush=True)
  print('FreeBSD native Jail matrix passed',flush=True)
 finally:
  for process,log in reversed(processes):

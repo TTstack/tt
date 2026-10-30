@@ -1,7 +1,10 @@
 # Implementation plan — TTstack in Go
 
 Status: reviewed against Rust revision `1ad83a9feed5fac820d74b5e7ef752e50a552740`
-(workspace version 0.6.0); phases 0–7 implemented and accepted within the recorded native matrix. This document is the contract for
+(workspace version 0.6.0). The subsequently authorized optional recovery
+protocols and their forward-only database migrations are specified in
+[compatibility §10–15](compatibility.md#10-durable-command-envelope-optional-extension);
+they are outside pinned Rust parity. The original phases 0–7 are implemented and accepted within the recorded native matrix. This document is the contract for
 what will be built, how it maps onto the Rust release, and how each step is verified.
 
 ## 1. Purpose

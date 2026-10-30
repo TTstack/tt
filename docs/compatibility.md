@@ -3,7 +3,9 @@
 This document is normative for the Go port. Where the Go code and this document
 disagree, one of them is a bug. Reference paths point into `../TTstack`.
 The oracle is revision `1ad83a9feed5fac820d74b5e7ef752e50a552740` (0.6.0),
-as pinned in [plan.md](plan.md). Rust source wins over an incorrect plan statement.
+as pinned in [plan.md](plan.md). Rust source wins over an incorrect plan statement
+for the parity surface; explicitly authorized extensions in §10–15 have their own
+contracts and forward-only schema versions.
 
 ## 1. Scope
 
@@ -205,7 +207,7 @@ CREATE INDEX idx_vms_env  ON vms(env_id);
 CREATE INDEX idx_vms_host ON vms(host_id);
 ```
 
-- `_meta.schema_version` = `5`; a database with a **higher** version refuses to
+- `_meta.schema_version` = `9`; a database with a **higher** version refuses to
   open with the "upgrade TTstack first" error; `current < 5` runs the backup
   migration (materialize a default `backup` object with a fresh UUID `revision`
   only where the key is absent, preserving existing values and unknown fields).
@@ -231,7 +233,7 @@ CREATE TABLE _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE vms   (id TEXT PRIMARY KEY, data TEXT NOT NULL);
 ```
 
-- `_meta.schema_version` = `6`; a populated database with any other version is
+- `_meta.schema_version` = `10`; native schemas 6–9 upgrade as specified in §10–14; other populated versions are
   rejected (no automatic migration from v5 — the offline converter exists for
   that; see [the upgrade procedure](deployment.md#upgrade-and-offline-v5-conversion)). `_meta` also holds `host_id`, `network_config` and
   `container_runtime`.
@@ -410,3 +412,471 @@ startup probe is made.
 
 The independent review and evidence are recorded in
 [audit-resolution-2026-09-30.md](validation/audit-resolution-2026-09-30.md).
+
+## 10. Durable command envelope (optional extension)
+
+The optional protocols in §10–15 extend the pinned release under explicit
+operator authorization. Legacy HTTP requests, six-hour default lifetime and
+implicit SSH forwarding retain their existing behavior. Databases advance to
+controller v9 and agent v10 even for legacy API users; valid controller v5 and
+agent v6 state migrate forward. These databases cannot be reopened by the
+pinned Rust or an older Go release. Keep an offline database copy before upgrade;
+service takeover by an older binary requires that compatible copy, not an
+in-place schema downgrade.
+
+`tt-agent --stop-grace` sets the default grace for Linux QEMU/Firecracker:
+`-1` preserves 10/30 seconds, `0` skips the graceful attempt, and a positive
+integer up to 300 supplies seconds. Values outside -1..300 are rejected before
+engine construction, preventing duration overflow from becoming immediate force. Per-call policy in §11 overrides that default for
+one operation. Other engines retain their existing shutdown behavior.
+
+Environment lifecycle clients may send `X-Compute-Command`, a JSON object with
+`subject`, positive `generation`, positive signed-64-bit `token`, `key` (1–200
+characters) and a 64-character SHA-256 `fingerprint`. The subject is the
+environment ID and must end in `-g<generation>`. Controller-to-agent calls
+forward this identity, suffixing the step key with the inner VM ID. This header
+contains identities and digests, never bearer credentials or guest secrets.
+
+Both receivers commit the highest token and a request receipt before dispatch.
+A lower token fails with `state/stale_fence`; the same key with a changed
+fingerprint, method, path or body fails with `terminal/fingerprint_conflict`.
+Successful acceptance is replayed from the receipt. Failed/pending attempts can
+be retried with the same identity. Watermarks and receipts survive deletion and
+restart. A subject that has accepted a fenced command rejects subsequent legacy
+unfenced mutations. Unfenced subjects retain the legacy API behavior.
+
+Classified failures use `{ok:false,failure:{class,code,message}}`. Classes are
+`denied`, `terminal`, `state`, `transient`, `rate_limited` and `unknown`.
+`Resp.failure` is optional and omitted by legacy responses. Receiver refusals
+retain their class through controller forwarding; messages never drive retry
+classification. Existing unclassified legacy responses keep their old contract.
+
+Controller `EnvDetail` adds optional `observation_revision`. A successful complete
+snapshot allocates a signed-64-bit sequence from a persistent controller clock
+while holding the snapshot lock. It advances across repeated lifecycle cycles
+and controller restarts; zero means the sender does not implement this extension.
+It is a sample ordering guarantee, not proof of guest application readiness.
+
+Controller schema 6 adds `observation_clock`, `command_fences` and
+`command_receipts`. Agent schema 7 adds the latter two tables; a structurally valid
+native schema 6 upgrades transactionally to 7 before admission. Other populated
+agent versions remain refused. The v5 offline converter still emits native v6,
+which upgrades at the next agent start. Incomplete databases are never repaired
+by this migration. These extensions intentionally diverge from the pinned Rust
+wire oracle; legacy fixture shapes remain unchanged when fields are absent.
+
+## 11. Per-call stop policy (optional extension)
+
+`POST /api/envs/{id}/stop` and `POST /api/vms/{id}/stop` accept an optional JSON
+object with `grace_seconds` (1–300), `force` (boolean) and `graceful_only`
+(boolean). An absent body or `{}` preserves engine/agent defaults. `force`
+skips graceful shutdown; `force` and `graceful_only` are mutually exclusive.
+A zero explicit grace, an out-of-range grace or conflicting flags is
+`terminal/invalid_stop_policy`, before any engine effect.
+
+Linux QEMU and Firecracker implement this policy. Other engines refuse a
+non-default policy with `terminal/unimplemented`. Policy is copied into one engine
+instance and never changes the fleet-wide default. Graceful-only expiry returns
+`state/graceful_timeout`, retains the process and disk, and never invokes the
+force-kill path. A later explicit force is a separate command identity. Custom
+grace without `graceful_only` follows the normal graceful-then-force progression.
+The controller forwards these fields and preserves typed agent refusals.
+
+`tools/native/stop-policy.py` exercises the three modes using a boot-only
+Firecracker image without a shutdown handler. It requires an explicitly named
+controller and key file and cleans only the unique environment it created.
+
+## 12. Persistent disks and immutable volume checkpoints (optional extension)
+
+The persistent disk API is negotiated independently of build version.
+`GET /api/storage-capabilities` returns `StorageFeatures` with
+`protocol_version: 1`, `volumes`, `snapshots` and `data_disks`. Each agent's
+`AgentInfo.storage_features` and the controller's `Host.storage_features` report
+that agent's support. A missing report or an unknown protocol is unsupported;
+modern placement never sends disk fields to an older agent that would ignore them.
+Linux file and zvol backends have native qualification; other hosts advertise
+these features as unavailable until qualified.
+
+Both services expose:
+
+| Method | Path | Meaning |
+|---|---|---|
+| POST | `/api/volumes` | create a blank raw disk, image root or checkpoint clone |
+| GET | `/api/volumes` | bounded keyset page, `size` 1–100, `after`, optional `owner` |
+| GET | `/api/volumes/{id}` | read authoritative disk metadata, including tombstones |
+| PATCH | `/api/volumes/{id}` | grow capacity and/or change explicit retention |
+| DELETE | `/api/volumes/{id}` | explicit offline destruction after dependencies clear |
+| POST | `/api/volumes/{id}/attach` | offline binding to a co-located VM |
+| POST | `/api/volumes/{id}/detach` | offline detachment |
+| POST | `/api/volumes/{id}/snapshots` | create a unique immutable checkpoint |
+| GET | `/api/volume-snapshots` | bounded checkpoint page |
+| GET, DELETE | `/api/volume-snapshots/{id}` | inspect or explicitly remove a checkpoint |
+
+Every mutation requires the §10 command envelope. Volume identities end in their
+own `-g<generation>`; checkpoint mutations carry the checkpoint subject. A
+checkpoint create is fenced on its source volume and takes `{id}` as its body.
+Binding takes `{vm_id, role}`; the VM ID is the inner VM identity and role is
+`root` or `data`. Disk observations include the current attached environment
+identity as well as the inner VM ID. Callers never submit a host filesystem path.
+
+`VolumeSpec` supplies `id`, `generation`, `size_mib` (1–1048576), explicit `retain`,
+optional `owner`, `host_id`, image+engine for an initialized root, or
+`from_snapshot` for a new clone. Blank data disks are raw. Root images support
+QEMU/Firecracker and use the backend's existing root format. A source checkpoint
+fixes locality, image and engine; restoration never changes the source and never
+shrinks it. Volume and checkpoint metadata persist after deletion as tombstones.
+IDs are not reused, including after deletion. Lower command watermarks
+and changed request fingerprints are rejected before physical effects.
+
+Persistent VM creation adds named object fields `durable_root`, `root_volume_id`,
+`root_retain`, `data_volume_ids`, `host_id` and `initial_stopped`. An automatic root
+is identified deterministically from the environment and VM slot and defaults to
+retained. Explicit roots and all data disks must already exist, be available and
+share one host. The limit is eight data disks per VM. QEMU and Firecracker attach
+those raw disks at launch. Root replacement requires explicit offline detach and
+attach. Stopped provisioning spends disk capacity without consuming running seats.
+It does not boot the guest; a subsequent start is a distinct command.
+
+A managed VM's deletion stops and destroys the engine process, fences/detaches
+its disks, and preserves those independent disks. It never implicitly destroys
+managed data, even when a disk's retention flag is false. The caller's journaled
+GC phase performs explicit volume destruction. Destruction refuses retained or
+attached disks and any live checkpoint dependency; retention must first be
+cleared explicitly. Legacy VMs without persistent-disk fields keep their existing
+clone/deletion semantics.
+
+A disk becomes available only after its journaled initialization and durability
+barrier. Retrying a creation may discard an owned *unpublished* stage; an already
+available disk is never silently recreated, even if its bytes later disappear.
+Growth is offline and grow-only, with the larger reservation committed before
+I/O. A pending checkpoint fences starts, attachments and growth until the
+checkpoint settles. File checkpoints are independent private copies; zvol
+checkpoints retain ZFS ancestry. Every restored Firecracker dataset rewrites its
+root-device symlink to its own cloned child, preventing source-device aliasing.
+Restored disks retain their checkpoint dependency until explicit destruction.
+
+Controller placement atomically records the VM plan and root-volume reservation;
+replay retains the original VM ID, disk identity and host. Modern environment
+creation runs to an observed engine/stopped result before returning acceptance;
+a partial result remains outcome-unknown and resumes the persisted plan. The
+application must still establish guest runtime readiness separately. Requests
+are bound by a controller-computed creation hash. Root metadata/kernel overhead
+is included in host disk admission; independent disks are charged once and remain
+charged after VM deletion. Unknown initialization, growth and checkpoint outcomes
+keep their claims. Late observations cannot erase growth reservations or revive
+deletion tombstones.
+
+Controller schema 7 adds `volumes` and `volume_snapshots`; agent schema 8 adds
+those catalogs after the command-journal migration. Each upgrade is transactional
+and preserves existing VM rows. Named optional JSON fields carry the new data;
+the legacy positional tuple maximum remains pinned, so an old extra tuple member
+cannot acquire a new meaning. The norm for existing paths remains unchanged;
+persistent disks use `<runtime-dir>/volume-<id>` and file checkpoints use
+`<runtime-dir>/checkpoint-<id>`. These are host-local paths only.
+
+`tools/native/volumes.py` validates real root/data persistence, offline rebinding,
+start/stop, growth, checkpoint cloning, dependency guards and cleanup. It accepts
+an explicitly isolated agent or controller and separate file/zvol fixture names.
+The application-level quota, sealed-backup and sweep protocols are separate gates;
+this API alone does not claim their completion.
+
+## 13. Complete workspace recovery manifests (optional extension)
+
+`StorageFeatures.workspace_snapshots` negotiates complete stopped-workspace
+checkpoints. `POST /api/envs/{id}/recovery-points` accepts `{id}` under the source
+environment's fenced identity. `GET /api/recovery-points` is a keyset page (1–100,
+`after`, optional `environment`), and `GET`/`DELETE /api/recovery-points/{id}`
+inspect or destroy a manifest. Checkpoint IDs carry their own source generation.
+
+A manifest captures exactly one stopped managed VM, its profile, and the complete
+root/data disk set. The agent first persists a `checkpoint_freezes` record and a
+writer fence on every participating disk. Starts, resizing, deletion, rebinding
+and independent snapshots fail while that fence is held. The controller captures
+the agent's exact frozen profile, allocates immutable child checkpoint identities,
+creates every child, then thaws the same freeze identity. A manifest publishes
+`ready` only after all children and thaw are acknowledged. Freeze, each disk
+snapshot and thaw use distinct deterministic step keys. A crash resumes the
+recorded disk set and sequence, never a newly guessed set of files.
+
+`POST /api/envs/{new-id}/restore` takes `{point_id,owner,cpu?,mem?,guest_config?}`
+and requires a new environment identity. The controller journals an immutable
+restore plan, clones every source disk into a new disk identity in the source
+locality, and provisions the new VM **stopped**. The source manifest/disks are
+unchanged. A subsequent explicit start has its own identity and admission.
+Restored disk dependencies prevent destruction of their checkpoint ancestors.
+
+Deleting a creating point is an explicit abort. It advances source environment
+and volume fencing watermarks, removes only that point's partial children, and
+thaws only its own freeze identity. A failed abort remains visible and retained;
+it is not timed into success. A ready-point deletion is mark-then-sweep and may
+remain `deleting` while a restored disk still depends on a child checkpoint.
+
+Controller schema 8 adds `recovery_points` and `recovery_restores`. Agent schema 9
+adds the durable `checkpoint_freezes` table; older agents reject that format.
+The new pointer-free wire models are named objects, separate from legacy tuples.
+`tools/native/recovery.py` validates the complete manifest, cloned root/data
+contents, new stopped VM, source preservation, boot, ancestry refusal and cleanup.
+
+## 14. Portable disk archives and image cache (optional extension)
+
+`StorageFeatures.archives` and `.image_pull` negotiate this protocol separately
+from build versions. `GET /api/volumes/{id}/archive` exports an available,
+unattached settled disk through the authenticated controller. Export holds
+subject exclusion against writes, but streams outside the global lifecycle lock.
+The agent has two independent transfer slots. Exports and imports time out after
+30 minutes; neither a disconnect nor expiry proves resource absence.
+
+The portable format is one gzip stream containing a USTAR archive, with a regular
+`manifest.json` first (maximum 16 KiB), followed by exactly its ordered regular
+members and the standard two-block tar terminator. No links, directories, PAX
+extensions, undeclared entries or trailing bytes are accepted. The manifest is
+`DiskArchive{version:1,engine,image,format,size_mib,members:[{name,bytes}]}`.
+Firecracker uses `vmlinux` (nonempty, at most 64 MiB), `rootfs.ext4` (exact disk
+length), and optional `guest-config.ext4` (exact configured config-disk length).
+QEMU uses a single `disk.raw` (exact disk length) or `disk.qcow2` (at most disk
+size plus size/128 plus 8 MiB). Blank data disks use exact-length `disk.raw`.
+QEMU validation additionally checks the admitted virtual size, rejects backing
+files, external data files and encryption, and runs the image integrity checker.
+File backends publish QEMU disks as qcow2; zvol backends publish raw devices.
+
+`POST /api/volumes/{id}/import` accepts
+`{pull:{id,sha256,bytes,expanded_mib},spec:VolumeSpec}`. The compressed SHA-256,
+exact compressed length and expanded member budget bind the immutable intent.
+Root engine/image/size must match its manifest. Admission reserves both the new
+disk and private staging bytes before downloading. The URL is transported only
+in `X-Archive-Source`, outside the semantic command fingerprint, so presigned
+access can be refreshed without changing intent. Executors accept only exact
+configured origins in `TT_ARCHIVE_SOURCES` (comma-separated host:port authorities),
+with no redirects, userinfo or fragments. Origins are operator trust boundaries;
+configure only private archive brokers or intended object-store endpoints.
+
+Agent schema 10 adds `archive_imports`. A journal owns each private stage under
+`<data-dir>/archive-stages/<id>` and its new unpublished target. Verification and
+sync precede the durable ready marker. File publication uses exclusive copies
+when the state staging directory and runtime/image storage are on different
+filesystems; an existing target is never adopted. A crash retries only that unpublished
+stage, never an available disk. Post-admission failures retain the journal and
+claims and report `unknown/archive_incomplete`. Explicit disk destruction also
+cleans its stage and tombstones the import; ordinary creation cannot adopt an
+unfinished import. Transfer identities and fencing use §10.
+
+`POST /api/images/{sha256-<digest>-g1}/ensure` asks the controller to pull the
+same admitted archive into qualified online hosts, through agent
+`POST /api/images/{id}/pull`. Image IDs bind the compressed archive digest.
+Image staging and cache bytes are charged to host capacity. Catalogs and VM
+creation require the durable image-ready marker, so a visible partial directory
+cannot become a bootable image. The controller preserves unknown partial fleet
+outcomes for replay. The cache is immutable; its physical directory alone never
+constitutes admission. Sealing and object-store credentials belong to callers,
+not this generic executor protocol.
+
+Profile-bound image administration additionally requires
+`StorageFeatures.image_catalog` from controller and agent. Ensure accepts an
+optional `spec:{engine,size_mib}`; a nonempty expected engine requires the archive
+manifest's exact engine and root size before publication. Legacy callers that
+omit this profile retain the original archive contract. Unknown feature support
+is rejected by profile-bound callers.
+
+Controller schema 9 adds `image_catalog(id,data)`. A row binds the full immutable
+pull and optional profile to a complete bounded set (maximum 4096) of receiver
+`{id,addr}` pairs before any dispatch. Retry preserves that set through host
+catalog changes. Offline, removed or replaced receivers remain unknown. A fresh image ensure command key may extend the durable set with newly
+qualified receivers; replay keeps its last accepted set. Extension never removes
+an earlier receiver, including one currently offline.
+`POST /api/images/{id}/fence` propagates a higher subject fence to every recorded
+receiver without deleting caches or modifying their data. `DELETE /api/images/{id}/cache` on the
+controller marks its plan retiring and dispatches the higher image command to
+that same set; the controller refuses later ensure on a retiring plan. Agent
+cache deletion checks both VM and retained-disk references, drains earlier image
+commands through subject exclusion and cleans journal-owned cache/stage bytes.
+An unadmitted or already deleted cache needs a complete bounded namespace and
+stage absence proof; unowned bytes are quarantined and never deleted by name.
+An absent controller plan proves only that this controller never dispatched a
+pull; physical caches after catalog rollback require the epoch recovery protocol.
+
+`tools/native/archive.py` validates root/data round trips, refreshed-grant replay,
+restored boot, content-addressed image pull/boot, and corrupted-byte refusal on
+explicitly isolated file/zvol agents. Its HTTP source must use a configured
+private origin. Run the harness inside the agent's mount namespace for zvol
+root-device access, as with §12–13.
+
+Agent `DELETE /api/images/{id}/cache` explicitly sweeps only a journal-owned
+content cache under its fenced image identity. It refuses live VM/disk
+references, marks the cache unavailable before physical cleanup, retains claims
+on failure, and refreshes the catalog only after durable deletion. This cold
+lane does not hold the lifecycle mutex while destroying storage. A later pull
+can re-materialize the exact same immutable digest with a fresh command key;
+watermarks and receipts survive eviction. User disk identities remain tombstoned
+and cannot be reused. Native archive harness cleanup uses this private agent
+endpoint after deleting its own VM/disk dependencies.
+
+Root-disk placement also requires the requested engine, its qualified disk-size
+capability, an advertised base image with a known sufficient size, and capacity.
+Portable imports carry their own verified base bytes and therefore require engine
+qualification without requiring that source image to be pre-cached. A partial
+controller plan is cleaned only through the executor's fenced delete ACK. If an
+executor never admitted a disk row, it checks VM bindings and physical absence;
+unowned bytes, dangling paths and failed probes remain unknown and untouched.
+Only a successful absence ACK permits the controller's corresponding tombstone.
+
+`StorageFeatures.archive_abort` separately negotiates
+`POST /api/volumes/{id}/import/abort`. Under a higher fenced command, it discards
+only an unsettled import whose durable journal proves it was never ready or
+attached. Tentative retention belongs to that unpublished stage and cannot block
+its explicit abort. A ready import refuses this action and remains governed by
+normal disk retention. Missing ownership, live VM references, unowned bytes and
+failed probes remain unknown. The controller requires the feature report before
+forwarding and records absence only after a positive executor acknowledgement.
+
+## 15. External control epochs and physical recovery evidence (optional extension)
+
+`--authority-file` configures a private absolute JSON file outside the SQLite
+restore scope. Its version-1 fields are `version`, `authority` (canonical UUID),
+`epoch` (1..8388607), `phase` (`fenced`, `inventory`, `reads`, `mutations`, `gc`),
+and `key` (canonical decision UUID). Receivers require bearer authentication and
+an explicitly stable host ID. Missing/malformed/unavailable files fail closed;
+an observed authority-ID change or epoch decrease is refused.
+
+Modern command envelopes add `authority` and `epoch`. The fencing token composes
+`epoch << 40 | sequence`, with sequence in 1..1099511627775 and the result fitting
+a signed 64-bit counter. Receiver-wide epoch validation precedes receipt lookup,
+including a success receipt restored from old SQLite. Unknown subjects get the
+same global check. Normal commands are blocked before the mutation phase;
+unregistered mutations fail closed. Legacy expiry/deletion and agent automatic
+reconciliation do not run in this modern profile. Read-only host catalog refresh
+waits for its verified serving gate.
+The legacy profile remains explicitly unbound to this extension.
+
+Serving phase hints alone do not grant command authority. `activation_version: 2`
+in the control report negotiates `POST /api/control/resume`. Its body names
+`phase` (reads, mutations, GC), `fence_id`, `previous`, `inventory_digest` (host
+only), `catalog_digest` and `plan_digest`. The receiver verifies its own current
+fence and a strict phase chain. A host recomputes complete frozen inventory and
+requires zero owned payload processes before reads and mutations. GC drains
+earlier receiver commands and storage transfers; its receipt attests a command
+barrier and the prior phase chain, not shutdown of legitimate current-epoch VMs.
+Controllers attest only their own gate and command barrier. The authenticated
+caller's catalog/plan digests bind its reviewed composition; they cannot replace
+the receiver's physical evidence.
+
+External `<authority-file>.activation-reads`, `-mutations` and `-gc` documents
+contain version, UUID, authority/epoch, epoch decision key, receiver, command key,
+method, scope digest, exact request and completion timestamp. Receipts publish
+before the phase file. A retry can finish an interrupted phase write using the
+same immutable receipt. Complete current-epoch history is returned in `activations`.
+Mutation admission requires the entire matching external phase chain as well as
+the epoch file; SQLite loss or a serving-mode hint cannot manufacture it. DELETE
+and unpublished-import abort require the separate GC gate.
+
+Version-2 activation receipts also persist `quarantine_mib` and
+`quarantine_pinned`, computed by the receiver from its own frozen inventory.
+Every phase in the chain must preserve those claims. They are restored before
+serving after a process restart, independently of SQLite rows. Controllers report
+zero quarantine capacity; they cannot replace host accounting. Upgrading a bound
+receiver from the earlier development receipt format requires a new fenced epoch.
+A missing receipt or incompatible chain blocks admission.
+
+Inventory items report `capacity_mib`, `claim_mib` and `capacity_unknown`. The
+complete report sums capacity exceeding durable metadata claims into
+`quarantine_mib`; an unknown bound sets `quarantine_pinned`. Both totals are checked
+against complete item pages. Admission and `/api/info` include this independent
+claim; an unknown bound consumes the host's entire disk budget. A timeout, missing
+SQLite row or later file disappearance cannot release that external claim. A new
+reviewed epoch may establish a lower bound after explicit resource resolution.
+
+Sparse files are measured by logical length. Bounded qcow2 v2/v3 header inspection
+uses virtual capacity plus the existing root metadata envelope, without opening
+backing or external data paths; it establishes no image validity or ownership.
+Unsupported layouts remain unknown. Fixed Firecracker members are measured as
+raw files. ZFS uses referenced/logical-referenced and volume size separately,
+avoiding parent/subtree `used` double-counting. A Firecracker filesystem alone
+cannot hide a missing `rootfs` child. Image pulls must fit their admitted virtual
+capacity as well as their bounded transfer envelope. Unpublished stage traversal
+is bounded and never follows links.
+
+The modern agent does not replay legacy automatic restart/resize/backup recovery
+loops when gates open. The modern controller disables legacy expiry/deletion
+jobs. Explicit current-epoch commands drive effects; host catalog refresh remains
+an observation and cannot replace unreadable ownership rows with placeholders.
+The unbound legacy profile retains its original automatic behavior.
+Modern `/api/info`, VM list and VM get project bounded read-only QEMU/Firecracker
+process observations. Two independent request lanes and four probes per request
+bound work; a changed database/authority snapshot or failed identity probe returns
+a typed failure. Runtime/journal/network/disk rows are not repaired or settled by
+these reads. Pending creation/deletion/resize/backup intent keeps its recorded
+state. Advertised computation retains at least the durable claim even when a
+process has exited. A live process contradicting a recorded stopped state pins
+admission for explicit recovery. A verified physical fence clears that fault.
+
+Controllers advertise `enrollment_version: 1` for `POST /api/control/enroll`.
+This is a normal current-epoch mutation under the control subject, after serving
+activation. The request pins `host_id`, private HTTP `endpoint`, `scope_digest`
+and the exact activated `plan_digest`. The controller verifies the authenticated
+agent's current authority, epoch, scope and mutation receipt before registering
+that exact peer. The returned command receipt binds the request; same-key replay
+is stable. This action records membership only: agent VMs/disks absent from
+controller ownership are never adopted. Legacy `/api/hosts` behavior remains
+available only in the explicitly unbound profile.
+
+`GET /api/control` returns protocol version, enabled authority/epoch/phase and a
+current-epoch fencing receipt when present. Enabled process-backed agents also
+report `scope_digest` and `engines` before fencing, so an external deployment plan
+can pin the exact process/storage namespace separately from restored routing rows.
+`POST /api/control/fence` requires
+subject `control-<authority>-g<epoch>`, generation equal to epoch, current epoch
+and a stable command key. A host drains earlier admitted commands, pins owned
+processes with pidfd, verifies exit and persists stopped observations before
+committing an external receipt and advancing only to inventory. A controller
+returns the distinct `controller_commands_drained` method, which proves no host
+shutdown. Physical node fencing may not be inferred from credential refusal,
+link loss, an empty restored VM table or the controller's receipt.
+
+The process-backed epoch profile supports QEMU and Firecracker and advertises
+that exact scope. Other workload engines require their own physical verifier.
+Each such receiver has an exclusive kernel payload domain, named from the full
+SHA-256 of immutable authority/receiver identity. Firecracker's jailer places
+children below that cgroup; QEMU uses `CLONE_INTO_CGROUP` through an opened cgroup
+FD. This domain remains outside SQLite state. A guest whose namespace exposes
+root and executable paths as `/` and `/firecracker` remains attributable by its
+kernel cgroup membership. Storage writers are also checked against the receiver's
+opened namespace roots. Identity-read failures retain uncertainty. No process
+outside the receiver scope is signaled.
+The scope digest includes the kernel boot identity. Serving startup rechecks the
+current namespace/boot scope against its external fence; configuration movement
+or a different kernel requires a new fenced recovery decision. This identifies
+the attested kernel domain and does not certify unrelated legacy workloads or
+the shutdown of an unreachable physical machine.
+
+The bounded external receipt at `<authority-file>.fence` contains version, UUID,
+authority/epoch, receiver, operation key, method, supported engines, scope/process
+identity digests, known VM count and completion timestamp. It survives SQLite
+rollback and same-key replay preserves the receipt. An epoch change invalidates
+it. Only the node's payload scope is attested; actual platform read/mutation/GC
+resume still requires complete inventory and explicit ownership resolution.
+
+`GET /api/control/inventory` captures physical namespace and catalog evidence on
+one independent lane. `size` is 1..100. Further pages require `snapshot` plus its
+`after` cursor; the complete captured identity/digest remains fixed for one
+minute. Namespace enumeration is bounded to 65536 entries, 65536 total physical
+parts and 16 parts per logical resource. Failed or changing inventories return a
+typed error, never partial evidence of absence. Volume/checkpoint payload probes,
+base/cache images, private archive stages, runtime markers, jail layouts and
+scoped process identity digests are included. Symlinks are observed without
+traversal. `frozen` describes command admission, not proof of physical shutdown.
+Items identify metadata-only, physical-only and mismatched payload facts; they do
+not authorize automatic adoption, deletion or reservation release.
+Runtime items carry `subject` as the environment identity independently of the
+physical VM UUID. Volumes report their attached environment in `subject` and
+source snapshot in `parent`; snapshot `parent` identifies the source volume.
+These references are metadata observations, never adoption authority.
+Runtime items additionally report generation, engine/image, CPU/memory and exact
+root/data disk IDs. `unsettled` marks pending legacy resources, backup artifacts
+or incomplete managed creation. Volume items mark pending snapshot/group/grow
+intent. These fields let an operator validate a complete stopped group without
+turning stale controller liveness into a new observation.
+
+`tools/native/epoch.py` runs on an explicitly disposable receiver unit. It keeps
+a real guest across receiver shutdown, restores SQLite from before guest creation,
+bumps the external epoch, proves stale-command refusal separately from physical
+fencing, then confirms pidfd termination, orphan inventory and preserved data.
+Original services are checked by explicit PID-preservation assertions.

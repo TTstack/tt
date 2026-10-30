@@ -142,8 +142,16 @@ consult the [validation records](validation/) for actual native coverage.
 
 ## Upgrade and offline v5 conversion
 
-Controller state is schema v5; older compatible controller schemas migrate on
-open. Agent state must be native v6: even an empty v5 database is rejected, and
+The optional recovery extensions migrate valid controller v5 state to v9 and
+agent v6–v9 state to v10 at startup. Before upgrading, stop the service and save
+an offline copy of its database and companion WAL/SHM files if present. Older Go
+and pinned Rust services cannot reopen the upgraded schema. Restore a compatible
+offline copy to run an older binary; never lower the schema marker manually.
+The v5 offline agent converter still emits v6, which upgrades on startup.
+
+Controller state is schema v9; older compatible controller schemas migrate on
+open. Agent state must be a structurally valid native v6–v10 database: even an
+empty v5 database is rejected, and
 changing only `_meta.schema_version` is unsafe. The offline converter assigns
 stable backup revisions while preserving old fields, host identity and bindings.
 
@@ -186,5 +194,5 @@ replacement. A failure leaves the source intact. Review the new database and
 install the compatible controller/agent binaries before restarting the service;
 use the same configuration and verify `tt status`, host identity and inventory.
 Do not run the converter against v6, do not delete retained runtime files to
-recover from a schema error, and do not downgrade an active v6 database to an
+recover from a schema error, and do not downgrade an upgraded database to an
 older agent. Preserve backups and inspect incomplete operations before rollback.

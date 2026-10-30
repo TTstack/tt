@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/TTstack/tt/internal/auth"
 	"github.com/TTstack/tt/internal/backup"
 	"github.com/TTstack/tt/internal/capability"
+	"github.com/TTstack/tt/internal/command"
 	"github.com/TTstack/tt/internal/model"
 	"github.com/TTstack/tt/internal/storage"
 )
@@ -22,6 +24,12 @@ type imageCatalog struct {
 	warning *string
 }
 type Server struct {
+	observationLane   chan struct{}
+	inventoryMu       sync.Mutex
+	inventory         *inventoryCache
+	inventoryLane     chan struct{}
+	transfers         chan struct{}
+	commandJournal    *command.Journal
 	runtime           *Runtime
 	mutation          sync.Mutex
 	dbPath            string
@@ -38,10 +46,19 @@ type Server struct {
 }
 
 func newServer(r *Runtime, path string) *Server {
-	return &Server{runtime: r, dbPath: path, info: r.AgentInfo(), backupEnabled: r.backupEnabled, backupUnsupported: r.backupUnsupported, imageDir: r.imageDir, images: imageCatalog{images: []string{}, sizes: map[string]uint32{}, warning: stringPointer("image catalog refresh pending")}, workCtx: context.Background(), catalogStore: func() (storage.ImageStore, error) { return storage.New(r.storage) }, catalogSlowAfter: 5 * time.Second, prepareRestore: prepareDiskRestore}
+	s := &Server{runtime: r, dbPath: path, info: r.AgentInfo(), backupEnabled: r.backupEnabled, backupUnsupported: r.backupUnsupported, imageDir: r.imageDir, images: imageCatalog{images: []string{}, sizes: map[string]uint32{}, warning: stringPointer("image catalog refresh pending")}, workCtx: context.Background(), catalogStore: func() (storage.ImageStore, error) { return storage.New(r.storage) }, catalogSlowAfter: 5 * time.Second, prepareRestore: prepareDiskRestore}
+	s.transfers = make(chan struct{}, 2)
+	s.inventoryLane = make(chan struct{}, 1)
+	s.observationLane = make(chan struct{}, 2)
+	s.commandJournal = command.New(r.db.conn, &s.mutation)
+	return s
 }
 func (s *Server) Handler(key *string) http.Handler {
 	routes := []api.Route{
+		{Pattern: "/api/control/inventory", Methods: []string{"GET"}, Handler: s.physicalInventoryHTTP},
+		{Pattern: "/api/control/fence", Methods: []string{"POST"}, Handler: s.fenceControlHTTP},
+		{Pattern: "/api/control/resume", Methods: []string{"POST"}, Handler: s.resumeControlHTTP},
+		{Pattern: "/api/control", Methods: []string{"GET"}, Handler: s.controlHTTP},
 		{Pattern: "/api/info", Methods: []string{"GET"}, Handler: s.getInfo},
 		{Pattern: "/api/images", Methods: []string{"GET"}, Handler: s.listImages},
 		{Pattern: "/api/vms", Methods: []string{"GET", "POST"}, Handler: s.vms},
@@ -52,7 +69,20 @@ func (s *Server) Handler(key *string) http.Handler {
 		{Pattern: "/api/vms/{id}/backup", Methods: []string{"GET", "PUT", "DELETE"}, Handler: s.backupVM},
 		{Pattern: "/api/vms/{id}/backup/restore", Methods: []string{"POST"}, Handler: s.restoreBackup},
 	}
-	return api.StripHeadBody(api.Router(routes, func(next http.Handler) http.Handler { return auth.Middleware(key, next) }))
+	routes = append(routes, api.Route{Pattern: "/api/subjects/{id}/fence", Methods: []string{"POST"}, Handler: func(w http.ResponseWriter, r *http.Request) {
+		if !requireDiskIdentity(w, r) {
+			return
+		}
+		api.WriteJSON(w, 200, api.Success(struct {
+			Fenced bool `json:"fenced"`
+		}{true}))
+	}})
+	routes = append(routes, api.Route{Pattern: "/api/vms/{id}/checkpoint/freeze", Methods: []string{"GET", "POST"}, Handler: s.checkpointHTTP}, api.Route{Pattern: "/api/vms/{id}/checkpoint/thaw", Methods: []string{"POST"}, Handler: s.checkpointHTTP})
+	routes = append(routes, api.Route{Pattern: "/api/volumes/{id}/archive", Methods: []string{"GET"}, Handler: s.exportArchiveHTTP}, api.Route{Pattern: "/api/volumes/{id}/import", Methods: []string{"POST"}, Handler: s.importArchiveHTTP}, api.Route{Pattern: "/api/images/{id}/pull", Methods: []string{"POST"}, Handler: s.importArchiveHTTP})
+	routes = append(routes, api.Route{Pattern: "/api/images/{id}/cache", Methods: []string{"DELETE"}, Handler: s.deleteImageCacheHTTP})
+	routes = append(routes, api.Route{Pattern: "/api/volumes/{id}/import/abort", Methods: []string{"POST"}, Handler: s.abortArchiveHTTP})
+	routes = append(routes, diskRoutes(s)...)
+	return api.StripHeadBody(api.Router(routes, func(next http.Handler) http.Handler { return auth.Middleware(key, s.commandMiddleware(next)) }))
 }
 
 // Request cancellation never supplies the mutation's context. net/http keeps
@@ -64,6 +94,11 @@ func mutate[T any](s *Server, f func(context.Context, *Runtime) (T, error)) (T, 
 	return f(s.workCtx, s.runtime)
 }
 func failure(w http.ResponseWriter, err error) {
+	var typed *api.BoundaryError
+	if errors.As(err, &typed) {
+		api.WriteJSON(w, typed.Status(), api.Resp[model.Unit]{Failure: typed})
+		return
+	}
 	api.WriteJSON(w, 500, api.Failure[model.Unit](err.Error()))
 }
 func actionReply(w http.ResponseWriter, err error) {
@@ -74,13 +109,23 @@ func actionReply(w http.ResponseWriter, err error) {
 	}
 }
 func (s *Server) getInfo(w http.ResponseWriter, request *http.Request) {
-	vms, corrupt, err := ReadRecoverySnapshot(request.Context(), s.dbPath, s.runtime.db.stderr)
+	vms, observed, corrupt, err := s.observedSnapshot(request.Context(), "")
 	if err != nil {
 		failure(w, err)
 		return
 	}
 	info := s.info
 	info.Resource = ResourcesFor(info.Resource, vms)
+	actual := ResourcesFor(info.Resource, observed)
+	info.Resource.CPUUsed = max(info.Resource.CPUUsed, actual.CPUUsed)
+	info.Resource.MemUsed = max(info.Resource.MemUsed, actual.MemUsed)
+	disk, err := ReadDiskUsage(request.Context(), s.dbPath)
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	info.Resource.DiskUsed = model.SatAdd(info.Resource.DiskUsed, disk)
+	s.runtime.applyQuarantine(&info.Resource)
 	info.Warnings = append(model.List[string]{}, info.Warnings...)
 	if corrupt {
 		pinToCapacity(&info.Resource)
@@ -93,7 +138,7 @@ func (s *Server) getInfo(w http.ResponseWriter, request *http.Request) {
 		info.Warnings = append(info.Warnings, *s.images.warning)
 	}
 	s.imagesMu.RUnlock()
-	inventory := model.List[model.Vm](vms)
+	inventory := model.List[model.Vm](observed)
 	info.VMs = &inventory
 	api.WriteJSON(w, 200, api.Success(info))
 }
@@ -105,7 +150,16 @@ func (s *Server) listImages(w http.ResponseWriter, _ *http.Request) {
 }
 func (s *Server) vms(w http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" || request.Method == "HEAD" {
-		vms, err := ReadVMs(request.Context(), s.dbPath)
+		if s.commandJournal.Authority == nil {
+			vms, err := ReadVMs(request.Context(), s.dbPath)
+			if err != nil {
+				failure(w, err)
+			} else {
+				api.WriteJSON(w, 200, api.Success(model.List[model.Vm](vms)))
+			}
+			return
+		}
+		_, vms, _, err := s.observedSnapshot(request.Context(), "")
 		if err != nil {
 			failure(w, err)
 		} else {
@@ -117,7 +171,9 @@ func (s *Server) vms(w http.ResponseWriter, request *http.Request) {
 	if !ok {
 		return
 	}
-	vm, err := mutate(s, func(ctx context.Context, r *Runtime) (*model.Vm, error) { return r.CreateVM(ctx, body) })
+	vm, err := mutate(s, func(ctx context.Context, r *Runtime) (*model.Vm, error) {
+		return r.CreateVM(command.CopyContext(ctx, request.Context()), body)
+	})
 	if err != nil {
 		if strings.Contains(err.Error(), "capability ") {
 			api.WriteJSON(w, 400, api.Failure[model.Unit](err.Error()))
@@ -131,11 +187,23 @@ func (s *Server) vms(w http.ResponseWriter, request *http.Request) {
 func (s *Server) vm(w http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
 	if request.Method == "DELETE" {
-		_, err := mutate(s, func(ctx context.Context, r *Runtime) (model.Unit, error) { return model.Unit{}, r.DestroyVM(ctx, id) })
+		_, err := mutate(s, func(ctx context.Context, r *Runtime) (model.Unit, error) {
+			return model.Unit{}, r.DestroyVM(command.CopyContext(ctx, request.Context()), id)
+		})
 		actionReply(w, err)
 		return
 	}
-	vm, err := ReadVM(request.Context(), s.dbPath, id)
+	var vm *model.Vm
+	var err error
+	if s.commandJournal.Authority == nil {
+		vm, err = ReadVM(request.Context(), s.dbPath, id)
+	} else {
+		_, observed, _, e := s.observedSnapshot(request.Context(), id)
+		err = e
+		if len(observed) == 1 {
+			vm = &observed[0]
+		}
+	}
 	if err != nil {
 		failure(w, err)
 	} else if vm == nil {
@@ -145,8 +213,16 @@ func (s *Server) vm(w http.ResponseWriter, request *http.Request) {
 	}
 }
 func (s *Server) stopVM(w http.ResponseWriter, request *http.Request) {
+	var options model.StopOptions
+	if request.ContentLength != 0 {
+		var ok bool
+		options, ok = api.ReadJSON[model.StopOptions](w, request)
+		if !ok {
+			return
+		}
+	}
 	_, err := mutate(s, func(ctx context.Context, r *Runtime) (model.Unit, error) {
-		return model.Unit{}, r.StopVM(ctx, request.PathValue("id"))
+		return model.Unit{}, r.StopVM(ctx, request.PathValue("id"), options)
 	})
 	actionReply(w, err)
 }
@@ -242,6 +318,9 @@ func (s *Server) RefreshImages(ctx context.Context) {
 			catalog.images, err = store.ListImages(ctx, s.imageDir)
 		}
 		if err == nil {
+			catalog.images, err = s.publishedArchiveImages(ctx, catalog.images)
+		}
+		if err == nil {
 			catalog.sizes = storage.ImageSizes(ctx, store, s.imageDir, catalog.images)
 		} else {
 			fmt.Fprintf(s.runtime.db.stderr, "[agent] image catalog unavailable: %v\n", err)
@@ -266,12 +345,21 @@ func (s *Server) RefreshImages(ctx context.Context) {
 	s.imagesMu.Unlock()
 }
 func (s *Server) ReconcileOnce(ctx context.Context) error {
+	// The modern command journal is driven by the caller's explicit epoch-bound
+	// intent. Legacy restart/backup journals cannot acquire that authority merely
+	// because a recovered global gate opens.
+	if s.commandJournal.Authority != nil {
+		return nil
+	}
 	vms, _, err := ReadRecoverySnapshot(ctx, s.dbPath, s.runtime.db.stderr)
 	if err != nil {
 		return err
 	}
 	for _, vm := range vms {
 		_, err := mutate(s, func(ctx context.Context, r *Runtime) (model.Unit, error) {
+			if !s.commandJournal.MutationsAllowed() {
+				return model.Unit{}, diskError("state", "recovery_fenced", "receiver reconciliation is paused")
+			}
 			return model.Unit{}, r.ReconcileVM(ctx, vm.ID)
 		})
 		if err != nil {

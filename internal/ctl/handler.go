@@ -9,6 +9,7 @@ import (
 	"github.com/TTstack/tt/internal/api"
 	"github.com/TTstack/tt/internal/auth"
 	"github.com/TTstack/tt/internal/capability"
+	"github.com/TTstack/tt/internal/command"
 	"github.com/TTstack/tt/internal/model"
 )
 
@@ -17,6 +18,13 @@ var dashboard []byte
 
 func (s *Server) Handler() http.Handler {
 	routes := []api.Route{
+		{Pattern: "/api/control/fence", Methods: []string{"POST"}, Handler: s.fenceControlHTTP},
+		{Pattern: "/api/control/resume", Methods: []string{"POST"}, Handler: s.resumeControlHTTP},
+		{Pattern: "/api/control/enroll", Methods: []string{"POST"}, Handler: s.enrollControlHTTP},
+		{Pattern: "/api/control", Methods: []string{"GET"}, Handler: s.controlReportHTTP},
+		{Pattern: "/api/storage-capabilities", Methods: []string{"GET"}, Handler: func(w http.ResponseWriter, r *http.Request) {
+			api.WriteJSON(w, 200, api.Success(model.StorageFeatures{ProtocolVersion: 1, ArchiveAbort: true, Archives: true, ImagePull: true, ImageCatalog: true, Volumes: true, Snapshots: true, DataDisks: true, WorkspaceSnapshots: true}))
+		}},
 		{Pattern: "/api/capabilities", Methods: []string{"GET"}, Handler: func(w http.ResponseWriter, r *http.Request) { api.WriteJSON(w, 200, api.Success(capability.Matrix())) }},
 		{Pattern: "/api/hosts", Methods: []string{"GET", "POST"}, Handler: s.hostsHTTP},
 		{Pattern: "/api/hosts/{id}", Methods: []string{"GET", "DELETE"}, Handler: s.hostHTTP},
@@ -32,7 +40,11 @@ func (s *Server) Handler() http.Handler {
 		{Pattern: "/api/images", Methods: []string{"GET"}, Handler: s.imagesHTTP},
 		{Pattern: "/api/status", Methods: []string{"GET"}, Handler: s.statusHTTP},
 	}
-	protected := api.Router(routes, func(next http.Handler) http.Handler { return auth.Middleware(s.apiKey, next) })
+	routes = append(routes, api.Route{Pattern: "/api/envs/{id}/fence", Methods: []string{"POST"}, Handler: s.fenceHTTP}, api.Route{Pattern: "/api/volumes/{id}/fence", Methods: []string{"POST"}, Handler: s.fenceHTTP})
+	routes = append(routes, volumeRoutes(s)...)
+	routes = append(routes, recoveryRoutes(s)...)
+	routes = append(routes, archiveRoutes(s)...)
+	protected := api.Router(routes, func(next http.Handler) http.Handler { return auth.Middleware(s.apiKey, s.commandMiddleware(next)) })
 	public := api.Router([]api.Route{{Pattern: "/", Methods: []string{"GET"}, Handler: func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
@@ -51,6 +63,10 @@ func (s *Server) Handler() http.Handler {
 }
 func reply[T any](w http.ResponseWriter, value T, err *APIError, status int) {
 	if err != nil {
+		if err.Failure != nil {
+			api.WriteJSON(w, err.Status, map[string]any{"ok": false, "failure": err.Failure})
+			return
+		}
 		api.WriteJSON(w, err.Status, api.Failure[T](err.Message))
 	} else {
 		api.WriteJSON(w, status, api.Success(value))
@@ -103,7 +119,7 @@ func (s *Server) envsHTTP(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		detail, err := s.createEnvironment(s.workCtx, request)
+		detail, err := s.createEnvironment(command.CopyContext(s.workCtx, r.Context()), request)
 		reply(w, detail, err, 202)
 		return
 	}
@@ -112,14 +128,26 @@ func (s *Server) envsHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) envHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "DELETE" {
-		reply(w, model.Unit{}, s.deleteEnvironment(s.workCtx, r.PathValue("id"), false), 200)
+		reply(w, model.Unit{}, s.deleteEnvironment(command.CopyContext(s.workCtx, r.Context()), r.PathValue("id"), false), 200)
 		return
 	}
 	detail, err := s.environmentDetail(r.Context(), r.PathValue("id"))
 	reply(w, detail, err, 200)
 }
 func (s *Server) changeHTTP(w http.ResponseWriter, r *http.Request, action string) {
-	reply(w, model.Unit{}, s.changeEnvironment(s.workCtx, r.PathValue("id"), action), 200)
+	var options model.StopOptions
+	if action == "stop" && r.ContentLength != 0 {
+		var ok bool
+		options, ok = api.ReadJSON[model.StopOptions](w, r)
+		if !ok {
+			return
+		}
+	}
+	if !model.ValidStopOptions(options) {
+		api.WriteJSON(w, 400, api.Resp[model.Unit]{Failure: &api.BoundaryError{Class: "terminal", Code: "invalid_stop_policy", Message: "invalid stop policy"}})
+		return
+	}
+	reply(w, model.Unit{}, s.changeEnvironment(command.CopyContext(s.workCtx, r.Context()), r.PathValue("id"), action, options), 200)
 }
 func (s *Server) vmHTTP(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -137,7 +165,7 @@ func (s *Server) resizeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	vm, err := s.resizeVM(s.workCtx, r.PathValue("id"), target)
+	vm, err := s.resizeVM(command.CopyContext(s.workCtx, r.Context()), r.PathValue("id"), target)
 	if err != nil {
 		reply(w, model.Vm{}, err, 0)
 	} else {
@@ -198,6 +226,11 @@ func (s *Server) restoreHTTP(w http.ResponseWriter, r *http.Request) {
 	backupReply(w, view, err)
 }
 func (s *Server) ExpireOnce(ctx context.Context) {
+	// Modern lifecycle decisions require explicit current-epoch commands. A
+	// restored legacy expiry/deletion intent cannot inherit the global gate.
+	if s.commandJournal.Authority != nil {
+		return
+	}
 	now := s.now()
 	envs, err := withDB(s, func(db *DB) ([]model.Env, error) {
 		envs, _, err := db.RecoveryEnvs(ctx)

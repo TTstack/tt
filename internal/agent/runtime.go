@@ -12,10 +12,12 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/TTstack/tt/internal/api"
 	"github.com/TTstack/tt/internal/capability"
+	"github.com/TTstack/tt/internal/command"
 	"github.com/TTstack/tt/internal/engine"
 	"github.com/TTstack/tt/internal/guestconfig"
 	"github.com/TTstack/tt/internal/model"
@@ -41,6 +43,13 @@ type hostNetwork interface {
 // Runtime is serialized by the service mutation lock. Disk/tool backup work uses
 // an immutable setup snapshot and a separate inherited writer lock outside it.
 type Runtime struct {
+	quarantineMiB                atomic.Uint32
+	quarantinePinned             atomic.Bool
+	observationUnsafe            atomic.Bool
+	processDomain                string
+	processEpochOnly             bool
+	transferActive               map[string]bool
+	exportReaders                map[string]int
 	hostID                       string
 	db                           *database
 	engines                      []model.Engine
@@ -167,6 +176,12 @@ func (r *Runtime) recount(ctx context.Context) error {
 		return err
 	}
 	r.resource = ResourcesFor(r.resource, vms)
+	disk, err := diskUsage(ctx, r.db.conn)
+	if err != nil {
+		return err
+	}
+	r.resource.DiskUsed = model.SatAdd(r.resource.DiskUsed, disk)
+	r.applyQuarantine(&r.resource)
 	if corrupt {
 		pinToCapacity(&r.resource)
 	}
@@ -199,7 +214,7 @@ func (r *Runtime) capabilityReport() model.CapabilityReport {
 }
 func (r *Runtime) AgentInfo() api.AgentInfo {
 	report := r.capabilityReport()
-	return api.AgentInfo{CapabilityReport: &report, Capabilities: r.capabilityTags(), HostID: r.hostID, Resource: r.resource, Engines: r.engines, Storage: r.storage}
+	return api.AgentInfo{StorageFeatures: &model.StorageFeatures{ProtocolVersion: 1, ArchiveAbort: true, Archives: true, ImagePull: true, ImageCatalog: true, WorkspaceSnapshots: runtime.GOOS == "linux", Volumes: runtime.GOOS == "linux", Snapshots: runtime.GOOS == "linux", DataDisks: runtime.GOOS == "linux"}, CapabilityReport: &report, Capabilities: r.capabilityTags(), HostID: r.hostID, Resource: r.resource, Engines: r.engines, Storage: r.storage}
 }
 func (r *Runtime) ListVMs(ctx context.Context) ([]model.Vm, error) { return loadAllVMs(ctx, r.db.conn) }
 func (r *Runtime) backupGuard(vm *model.Vm) error {
@@ -208,8 +223,16 @@ func (r *Runtime) backupGuard(vm *model.Vm) error {
 	}
 	return nil
 }
-func (r *Runtime) clonePath(vm *model.Vm) string { return r.runtimeDir + "/clone-" + vm.ID }
+func (r *Runtime) clonePath(vm *model.Vm) string {
+	if vm.Options.RootManaged {
+		return r.volumePath(vm.Options.RootVolumeID)
+	}
+	return r.runtimeDir + "/clone-" + vm.ID
+}
 func (r *Runtime) imagePath(ctx context.Context, vm *model.Vm) (string, error) {
+	if vm.Options.RootManaged && vm.Options.RootVolumeID == "" {
+		return "", diskError("state", "root_detached", "root volume is detached")
+	}
 	path := r.clonePath(vm)
 	switch vm.Engine {
 	case model.Firecracker:
@@ -239,6 +262,7 @@ func (r *Runtime) ensureNetwork(ctx context.Context) error {
 func (r *Runtime) restoreNetwork(ctx context.Context, vm *model.Vm) error {
 	if vm.Engine != model.Docker {
 		if vm.Engine == model.Jail && vm.Options.DenyOutgoing {
+			//lint:ignore ST1005 Preserve the pinned compatibility diagnostic.
 			return fmt.Errorf("Jail does not support deny_outgoing; retained guest requires operator review")
 		}
 		if runtime.GOOS == "linux" && vm.Options.IsolatedNetwork {
@@ -305,6 +329,19 @@ func boolUint64(value bool) uint64 {
 	return 0
 }
 func (r *Runtime) CreateVM(ctx context.Context, req api.CreateVmReq) (*model.Vm, error) {
+	if r.processEpochOnly && req.Engine != model.Qemu && req.Engine != model.Firecracker {
+		return nil, diskError("terminal", "unimplemented", "external process epoch scope accepts QEMU and Firecracker only")
+	}
+	if req.HostID != "" && req.HostID != r.hostID {
+		return nil, diskError("state", "wrong_locality", "VM targets a different host")
+	}
+
+	if req.DurableRoot || req.RootVolumeID != "" || len(req.DataVolumeIDs) > 0 {
+		if _, ok := command.FromContext(ctx); !ok {
+			return nil, diskError("terminal", "missing_identity", "managed disk creation requires command identity")
+		}
+	}
+
 	if err := model.ValidateName(req.VmID, "vm_id"); err != nil {
 		return nil, err
 	}
@@ -341,6 +378,31 @@ func (r *Runtime) CreateVM(ctx context.Context, req api.CreateVmReq) (*model.Vm,
 		return nil, fmt.Errorf("reserved guest configuration filename")
 	}
 	options := normalizedOptions(model.VmOptions{SSH: ssh, Ports: req.Ports, SSHKeys: req.SSHKeys, DenyOutgoing: req.DenyOutgoing, RequestedDisk: req.Disk, IsolatedNetwork: req.IsolatedNetwork, GuestConfigDigest: guestconfig.Digest(req.GuestConfig)})
+	options.RootManaged = req.DurableRoot || req.RootVolumeID != ""
+	options.RootVolumeID = req.RootVolumeID
+	options.InitialStopped = req.InitialStopped
+	if options.RootManaged && options.RootVolumeID == "" {
+		return nil, diskError("terminal", "invalid_volume", "managed root requires an explicit volume identity")
+	}
+	if options.RootManaged && ssh != nil {
+		return nil, diskError("terminal", "unimplemented", "managed root SSH bootstrap is not enabled")
+	}
+	if len(req.DataVolumeIDs) > 8 {
+		return nil, diskError("terminal", "size_exceeded", "at most eight data volumes are supported")
+	}
+	seen := map[string]bool{}
+	for _, id := range req.DataVolumeIDs {
+		if seen[id] || id == req.RootVolumeID {
+			return nil, diskError("terminal", "invalid_volume", "duplicate disk attachment")
+		}
+		seen[id] = true
+		disk, err := r.dataAttachment(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		options.DataVolumes = append(options.DataVolumes, disk)
+	}
+
 	existing, err := loadVM(ctx, r.db.conn, req.VmID)
 	if err != nil {
 		return nil, err
@@ -349,9 +411,14 @@ func (r *Runtime) CreateVM(ctx context.Context, req api.CreateVmReq) (*model.Vm,
 		if err := r.backupGuard(existing); err != nil {
 			return nil, err
 		}
-		existing.Options = normalizedOptions(existing.Options)
-		if existing.EnvID != req.EnvID || existing.Image != req.Image || existing.Engine != req.Engine || existing.CPU != req.CPU || existing.Mem != req.Mem || !reflect.DeepEqual(existing.Options, options) {
+		previous := normalizedOptions(existing.Options)
+		previous.RootDiskCharge = 0
+		previous.CreationComplete = false
+		if existing.EnvID != req.EnvID || existing.Image != req.Image || existing.Engine != req.Engine || existing.CPU != req.CPU || existing.Mem != req.Mem || !reflect.DeepEqual(previous, options) {
 			return nil, fmt.Errorf("VM ID already exists with different creation parameters")
+		}
+		if existing.Options.RootManaged && !existing.Options.CreationComplete && existing.State != model.VmDeleting {
+			return r.resumeManagedCreation(ctx, existing, req)
 		}
 		if existing.State == model.VmFailed || existing.State == model.VmDeleting {
 			return nil, fmt.Errorf("VM %s is %s; inspect and delete it before recreating", existing.ID, existing.State)
@@ -368,6 +435,34 @@ func (r *Runtime) CreateVM(ctx context.Context, req api.CreateVmReq) (*model.Vm,
 		return nil, err
 	}
 	base := r.imageDir + "/" + req.Image
+	var existingRoot *model.Volume
+	if options.RootManaged {
+		existingRoot, err = diskRecord[model.Volume](ctx, r.db.conn, "volumes", options.RootVolumeID)
+		if err != nil {
+			return nil, err
+		}
+		if existingRoot != nil {
+			if existingRoot.State != "ready" && existingRoot.State != "attached" {
+				return nil, diskError("state", "volume_busy", "root volume is unsettled")
+			}
+			if existingRoot.Engine != req.Engine || existingRoot.Image != req.Image || existingRoot.SizeMiB != req.Disk {
+				return nil, diskError("terminal", "invalid_volume", "existing root must match image, engine and disk capacity")
+			}
+			if existingRoot.AttachedTo != "" && existingRoot.AttachedTo != req.VmID {
+				return nil, diskError("state", "volume_attached", "root volume belongs to another VM")
+			}
+			base = r.volumePath(existingRoot.ID)
+		} else if !req.DurableRoot {
+			return nil, diskError("terminal", "not_found", "root volume not found")
+		}
+	}
+	// An existing verified root owns all boot bytes. A portable restoration
+	// must not require a source cache that may have died with another host.
+	if existingRoot == nil && req.Engine != model.Docker {
+		if err := r.imageImportGuard(ctx, req.Image); err != nil {
+			return nil, err
+		}
+	}
 	if req.Engine != model.Docker {
 		present, err := r.store.ImageExists(ctx, base)
 		if err != nil {
@@ -420,7 +515,19 @@ func (r *Runtime) CreateVM(ctx context.Context, req api.CreateVmReq) (*model.Vm,
 		}
 		disk = req.Disk
 	}
-	if !r.resource.CanFit(req.CPU, req.Engine.MemoryReservation(req.Mem), disk) {
+	additionalDisk := disk
+	if existingRoot != nil {
+		additionalDisk = options.ConfigDiskMiB(req.Engine)
+	}
+	if options.RootManaged && existingRoot == nil {
+		options.RootDiskCharge = req.Disk
+	}
+	cpuCharge, memCharge := req.CPU, req.Engine.MemoryReservation(req.Mem)
+	if req.InitialStopped {
+		cpuCharge = 0
+		memCharge = 0
+	}
+	if !r.resource.CanFit(cpuCharge, memCharge, additionalDisk) {
 		return nil, fmt.Errorf("insufficient resources on host %s", r.hostID)
 	}
 	if r.resource.VmCount >= model.MaxVMs {
@@ -462,7 +569,7 @@ func (r *Runtime) CreateVM(ctx context.Context, req api.CreateVmReq) (*model.Vm,
 	if err := r.recount(ctx); err != nil {
 		return nil, err
 	}
-	if err := r.createResources(ctx, vm, req.GuestConfig, base, req.Disk); err != nil {
+	if err := r.createResources(ctx, vm, req.GuestConfig, base, req.Disk, req); err != nil {
 		vm.State = model.VmFailed
 		vm.Error = stringPointer(err.Error())
 		if saveErr := saveVM(ctx, r.db.conn, vm); saveErr != nil {
@@ -471,12 +578,18 @@ func (r *Runtime) CreateVM(ctx context.Context, req api.CreateVmReq) (*model.Vm,
 		return nil, err
 	}
 	vm.State = model.VmRunning
+	if req.InitialStopped {
+		vm.State = model.VmStopped
+	}
+	if vm.Options.RootManaged {
+		vm.Options.CreationComplete = true
+	}
 	if err := saveVM(ctx, r.db.conn, vm); err != nil {
 		return nil, err
 	}
-	return vm, nil
+	return vm, r.recount(ctx)
 }
-func (r *Runtime) createResources(ctx context.Context, vm *model.Vm, caller model.GuestConfig, base string, disk uint32) error {
+func (r *Runtime) createResources(ctx context.Context, vm *model.Vm, caller model.GuestConfig, base string, disk uint32, request ...api.CreateVmReq) error {
 	config := model.GuestConfig{}
 	for name, value := range caller {
 		config[name] = value
@@ -502,16 +615,26 @@ func (r *Runtime) createResources(ctx context.Context, vm *model.Vm, caller mode
 			config[sshboot.SeedFile] = script
 		}
 	}
+	if vm.Options.RootManaged || len(vm.Options.DataVolumes) > 0 {
+		if len(request) == 0 {
+			return diskError("terminal", "missing_identity", "managed disk creation request is missing")
+		}
+		if err := r.prepareManagedVolumes(ctx, vm, request[0]); err != nil {
+			return err
+		}
+	}
 	if vm.Engine != model.Docker {
 		if err := r.ensureNetwork(ctx); err != nil {
 			return err
 		}
 		clone := r.clonePath(vm)
-		if err := r.store.CloneImage(ctx, base, clone); err != nil {
-			return err
+		if !vm.Options.RootManaged {
+			if err := r.store.CloneImage(ctx, base, clone); err != nil {
+				return err
+			}
 		}
 		if runtime.GOOS == "linux" && vm.Engine == model.Firecracker {
-			if disk > 0 {
+			if disk > 0 && !vm.Options.RootManaged {
 				if err := r.store.ResizeFirecracker(ctx, clone, disk); err != nil {
 					return err
 				}
@@ -529,7 +652,7 @@ func (r *Runtime) createResources(ctx context.Context, vm *model.Vm, caller mode
 				return err
 			}
 		}
-		if vm.Engine == model.Qemu {
+		if vm.Engine == model.Qemu && !vm.Options.RootManaged {
 			if err := r.store.ResizeDisk(ctx, clone, vm.Disk); err != nil {
 				return err
 			}
@@ -537,6 +660,9 @@ func (r *Runtime) createResources(ctx context.Context, vm *model.Vm, caller mode
 		if err := r.restoreNetwork(ctx, vm); err != nil {
 			return err
 		}
+	}
+	if vm.Options.InitialStopped {
+		return nil
 	}
 	path, err := r.imagePath(ctx, vm)
 	if err != nil {

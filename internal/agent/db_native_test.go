@@ -11,7 +11,7 @@ import (
 	"github.com/TTstack/tt/internal/runcmd"
 )
 
-func TestNativeRustGoAgentDatabaseInterchange(t *testing.T) {
+func TestNativeRustGoAgentDatabaseUpgradeBoundary(t *testing.T) {
 	oracle := os.Getenv("TT_TEST_AGENT_ORACLE")
 	if oracle == "" {
 		t.Skip("set TT_TEST_AGENT_ORACLE to the freshly rebuilt pinned Rust agent-db example")
@@ -38,6 +38,31 @@ func TestNativeRustGoAgentDatabaseInterchange(t *testing.T) {
 		}
 		return result
 	}
+	// The extensions migrate forward; the pinned Rust cannot reopen v10.
+	readGo := func(path string) report {
+		t.Helper()
+		d, err := openAgentDatabase(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer d.Close()
+		result := report{Version: agentSchemaVersion}
+		if err := d.conn.QueryRowContext(ctx, "SELECT value FROM _meta WHERE key='host_id'").Scan(&result.HostID); err != nil {
+			t.Fatal(err)
+		}
+		result.VMs, err = loadAllVMs(ctx, d.conn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	rejectOldReader := func(path string) {
+		t.Helper()
+		out, err := runcmd.Run(ctx, oracle, "check", path)
+		if err != nil || out.Success() {
+			t.Fatal("pinned Rust must refuse the upgraded database", err, string(out.Stderr))
+		}
+	}
 	source := filepath.Join(t.TempDir(), "rust.db")
 	initial := run("create", source)
 	if len(initial.VMs) != 5 || initial.Version != 6 {
@@ -58,7 +83,8 @@ func TestNativeRustGoAgentDatabaseInterchange(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Close()
-	checked := run("check", source)
+	rejectOldReader(source)
+	checked := readGo(source)
 	found := false
 	for _, vm := range checked.VMs {
 		if vm.ID == "firecracker" {
@@ -86,7 +112,8 @@ func TestNativeRustGoAgentDatabaseInterchange(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Close()
-	goChecked := run("check", goPath)
+	rejectOldReader(goPath)
+	goChecked := readGo(goPath)
 	if goChecked.HostID != host || len(goChecked.VMs) != 1 || goChecked.VMs[0].Backup.Revision != goVM.Backup.Revision {
 		t.Fatal(goChecked)
 	}

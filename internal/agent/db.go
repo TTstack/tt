@@ -14,13 +14,14 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/TTstack/tt/internal/command"
 	"github.com/TTstack/tt/internal/engine"
 	"github.com/TTstack/tt/internal/model"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
 
-const agentSchemaVersion = 6
+const agentSchemaVersion = 10
 
 // The writer owns one physical connection. Initialization gates schema writes
 // before enabling WAL/FULL; snapshots open independent read-only connections.
@@ -115,6 +116,81 @@ func (d *database) initialize(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if current == 6 || current == 7 || current == 8 || current == 9 || current == agentSchemaVersion {
+			stmt, err := d.conn.PrepareContext(ctx, "SELECT id,data FROM vms")
+			if err != nil {
+				return fmt.Errorf("validate agent VM table: %w", err)
+			}
+			stmt.Close()
+		}
+		if current == 6 {
+			tx, err := d.conn.BeginTx(ctx, nil)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback()
+			if _, err = tx.ExecContext(ctx, command.Schema); err != nil {
+				return err
+			}
+			if _, err = tx.ExecContext(ctx, "UPDATE _meta SET value='7' WHERE key='schema_version'"); err != nil {
+				return err
+			}
+			if err = tx.Commit(); err != nil {
+				return err
+			}
+			current = 7
+		}
+		if current == 7 {
+			tx, err := d.conn.BeginTx(ctx, nil)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback()
+			if _, err = tx.ExecContext(ctx, diskSchema); err != nil {
+				return err
+			}
+			if _, err = tx.ExecContext(ctx, "UPDATE _meta SET value='8' WHERE key='schema_version'"); err != nil {
+				return err
+			}
+			if err = tx.Commit(); err != nil {
+				return err
+			}
+			current = 8
+		}
+		if current == 8 {
+			tx, e := d.conn.BeginTx(ctx, nil)
+			if e != nil {
+				return e
+			}
+			defer tx.Rollback()
+			if _, e = tx.ExecContext(ctx, checkpointSchema); e != nil {
+				return e
+			}
+			if _, e = tx.ExecContext(ctx, "UPDATE _meta SET value='9' WHERE key='schema_version'"); e != nil {
+				return e
+			}
+			if e = tx.Commit(); e != nil {
+				return e
+			}
+			current = 9
+		}
+		if current == 9 {
+			tx, e := d.conn.BeginTx(ctx, nil)
+			if e != nil {
+				return e
+			}
+			defer tx.Rollback()
+			if _, e = tx.ExecContext(ctx, archiveSchema); e != nil {
+				return e
+			}
+			if _, e = tx.ExecContext(ctx, "UPDATE _meta SET value='10' WHERE key='schema_version'"); e != nil {
+				return e
+			}
+			if e = tx.Commit(); e != nil {
+				return e
+			}
+			current = 10
+		}
 		if current != agentSchemaVersion {
 			return fmt.Errorf("unsupported agent DB schema v%d; expected v%d; database migration or cleanup belongs to the caller's deployment script", current, agentSchemaVersion)
 		}
@@ -129,7 +205,7 @@ func (d *database) initialize(ctx context.Context) error {
 			return fmt.Errorf("initialize agent database: %w", err)
 		}
 		defer tx.Rollback()
-		if _, err := tx.ExecContext(ctx, "CREATE TABLE _meta (key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE vms (id TEXT PRIMARY KEY,data TEXT NOT NULL);"); err != nil {
+		if _, err := tx.ExecContext(ctx, "CREATE TABLE _meta (key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE vms (id TEXT PRIMARY KEY,data TEXT NOT NULL);"+command.Schema+diskSchema+checkpointSchema+archiveSchema); err != nil {
 			return fmt.Errorf("create native agent schema: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, "INSERT INTO _meta (key,value) VALUES ('schema_version',?1)", strconv.Itoa(agentSchemaVersion)); err != nil {

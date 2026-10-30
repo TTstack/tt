@@ -90,6 +90,16 @@ synthetic loopback output/request cases in `internal/cli/testdata/output-rust.js
 Both use the freshly built binary at the pinned revision. The output capture
 starts no guests and performs no deployment, image download or host mutation.
 
+## Optional recovery upgrade boundary
+
+The native database tests now verify forward migration from the pinned Rust
+schemas and deliberate refusal by the old Rust reader after the Go v9/v10
+upgrade. They also keep v5-to-v6 converter interoperability. The historical
+bidirectional state/takeover acceptance applies to the pre-extension baseline;
+it does not apply to an upgraded database. Never lower schema markers to make
+an old reader accept optional-protocol state. See
+[the normative upgrade boundary](../../docs/compatibility.md#10-durable-command-envelope-optional-extension).
+
 ## Independent audit probes
 
 `controller-lifecycle.py PATH_TO_TT_CTL` uses a synthetic loopback agent to observe

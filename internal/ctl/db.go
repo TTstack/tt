@@ -19,7 +19,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 5
+const schemaVersion = 9
 
 type queryer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
@@ -176,12 +176,51 @@ CREATE INDEX IF NOT EXISTS idx_vms_host ON vms(host_id);`)
 					return err
 				}
 			}
-			return tx.setVersion(ctx, schemaVersion)
+			return tx.setVersion(ctx, 5)
 		}); err != nil {
 			return err
 		}
-	} else {
-		if err := d.setVersion(ctx, schemaVersion); err != nil {
+	}
+	if current < 6 {
+		if err := d.transaction(ctx, "command and observation migration", func(tx *DB) error {
+			if _, err := tx.q.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS observation_clock(id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL);
+INSERT OR IGNORE INTO observation_clock VALUES(1,0);
+CREATE TABLE IF NOT EXISTS command_fences(subject TEXT PRIMARY KEY,token INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS command_receipts(subject TEXT NOT NULL,key TEXT NOT NULL,fingerprint TEXT NOT NULL,digest TEXT NOT NULL,status INTEGER NOT NULL,response BLOB NOT NULL,PRIMARY KEY(subject,key));`); err != nil {
+				return err
+			}
+			return tx.setVersion(ctx, 6)
+		}); err != nil {
+			return err
+		}
+	}
+	if current < 7 {
+		if err := d.transaction(ctx, "volume catalog migration", func(tx *DB) error {
+			if _, err := tx.q.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS volumes(id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS volume_snapshots(id TEXT PRIMARY KEY,data TEXT NOT NULL);`); err != nil {
+				return err
+			}
+			return tx.setVersion(ctx, 7)
+		}); err != nil {
+			return err
+		}
+	}
+	if current < 8 {
+		if err := d.transaction(ctx, "recovery manifest migration", func(tx *DB) error {
+			if _, err := tx.q.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS recovery_points(id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS recovery_restores(id TEXT PRIMARY KEY,data TEXT NOT NULL);`); err != nil {
+				return err
+			}
+			return tx.setVersion(ctx, 8)
+		}); err != nil {
+			return err
+		}
+	}
+	if current < 9 {
+		if err := d.transaction(ctx, "image catalog migration", func(tx *DB) error {
+			if _, err := tx.q.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS image_catalog(id TEXT PRIMARY KEY,data TEXT NOT NULL)`); err != nil {
+				return err
+			}
+			return tx.setVersion(ctx, schemaVersion)
+		}); err != nil {
 			return err
 		}
 	}

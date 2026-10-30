@@ -3,7 +3,6 @@ package agent
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -64,7 +63,7 @@ func TestDBSaveLoadUpsertDeleteAndAbsentVM(t *testing.T) {
 		t.Fatal(vm, err)
 	}
 	version, err := schemaVersion(ctx, d.conn)
-	if err != nil || version != 6 {
+	if err != nil || version != agentSchemaVersion {
 		t.Fatal(version, err)
 	}
 	for key, want := range map[string]string{"journal_mode": "wal", "synchronous": "2", "busy_timeout": "5000", "foreign_keys": "0"} {
@@ -75,7 +74,7 @@ func TestDBSaveLoadUpsertDeleteAndAbsentVM(t *testing.T) {
 	}
 }
 func TestIncompatibleDatabasesRejectedBeforeIdentityOrSchemaWrites(t *testing.T) {
-	for _, marker := range []string{"missing", "0", "1", "2", "3", "4", "5", "7", "invalid"} {
+	for _, marker := range []string{"missing", "0", "1", "2", "3", "4", "5", "11", "invalid"} {
 		t.Run(marker, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "agent.db")
 			d, err := openDatabase(context.Background(), path, false, 5000)
@@ -298,7 +297,7 @@ func TestSQLiteTextDoesNotCoerceCorruptColumnTypes(t *testing.T) {
 		}
 	}
 	var text sqlText
-	if err := d.conn.QueryRowContext(context.Background(), "SELECT ?1", fmt.Sprint("text")).Scan(&text); err != nil || text != "text" {
+	if err := d.conn.QueryRowContext(context.Background(), "SELECT ?1", "text").Scan(&text); err != nil || text != "text" {
 		t.Fatal(text, err)
 	}
 }

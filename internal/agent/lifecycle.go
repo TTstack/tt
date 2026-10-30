@@ -9,7 +9,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/TTstack/tt/internal/api"
 	"github.com/TTstack/tt/internal/capability"
+	"github.com/TTstack/tt/internal/engine"
 	"github.com/TTstack/tt/internal/model"
 	"github.com/TTstack/tt/internal/sshboot"
 	"golang.org/x/sys/unix"
@@ -25,7 +27,10 @@ func (r *Runtime) requireVM(ctx context.Context, id string) (*model.Vm, error) {
 	}
 	return vm, nil
 }
-func (r *Runtime) StopVM(ctx context.Context, id string) error {
+func (r *Runtime) StopVM(ctx context.Context, id string, options ...model.StopOptions) error {
+	if len(options) > 0 && !model.ValidStopOptions(options[0]) {
+		return &api.BoundaryError{Class: "terminal", Code: "invalid_stop_policy", Message: "invalid stop policy"}
+	}
 	vm, err := r.requireVM(ctx, id)
 	if err != nil {
 		return err
@@ -42,6 +47,12 @@ func (r *Runtime) StopVM(ctx context.Context, id string) error {
 	eng, err := r.engineFactory(vm.Engine, r.containerRuntime)
 	if err != nil {
 		return err
+	}
+	if len(options) > 0 {
+		eng, err = engine.ApplyStopPolicy(eng, options[0])
+		if err != nil {
+			return err
+		}
 	}
 	if err := eng.Stop(ctx, vm); err != nil {
 		vm.Error = stringPointer("stop unfinished: " + err.Error())
@@ -77,6 +88,9 @@ func (r *Runtime) StartVM(ctx context.Context, id string) error {
 	}
 	if vm.State != model.VmStopped && vm.State != model.VmPaused {
 		return fmt.Errorf("cannot start VM in state %s", vm.State)
+	}
+	if err := r.validateManagedBindings(ctx, vm); err != nil {
+		return err
 	}
 	if err := r.recount(ctx); err != nil {
 		return err
@@ -130,6 +144,9 @@ func (r *Runtime) StartVM(ctx context.Context, id string) error {
 	return r.recount(ctx)
 }
 func (r *Runtime) ResizeVM(ctx context.Context, id string, target model.VmResources) (*model.Vm, error) {
+	if err := r.checkpointGuard(ctx, id); err != nil {
+		return nil, err
+	}
 	vm, err := r.requireVM(ctx, id)
 	if err != nil {
 		return nil, err
@@ -237,6 +254,9 @@ func (r *Runtime) ResizeVM(ctx context.Context, id string, target model.VmResour
 	return vm, nil
 }
 func (r *Runtime) DestroyVM(ctx context.Context, id string) error {
+	if err := r.checkpointGuard(ctx, id); err != nil {
+		return err
+	}
 	vm, err := loadVM(ctx, r.db.conn, id)
 	if err != nil || vm == nil {
 		return err
@@ -287,7 +307,10 @@ func (r *Runtime) DestroyVM(ctx context.Context, id string) error {
 		if runtime.GOOS == "linux" && vm.Options.IsolatedNetwork {
 			collect(r.network.RemoveIsolation(ctx, id))
 		}
-		collect(r.store.RemoveImage(ctx, r.clonePath(vm)))
+		if !vm.Options.RootManaged {
+			collect(r.store.RemoveImage(ctx, r.clonePath(vm)))
+		}
+		collect(r.detachDeletedVM(ctx, vm))
 	}
 	if len(failures) > 0 {
 		message := strings.Join(failures, "; ")

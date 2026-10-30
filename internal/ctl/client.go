@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/TTstack/tt/internal/api"
 	"github.com/TTstack/tt/internal/auth"
+	"github.com/TTstack/tt/internal/command"
 	"github.com/TTstack/tt/internal/model"
 )
 
@@ -51,6 +53,23 @@ func (c *agentClient) request(ctx context.Context, method, address, path string,
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
+	if envelope, ok := command.FromContext(ctx); ok && method != "GET" {
+		parts := strings.Split(strings.Trim(path, "/"), "/")
+		identity := ""
+		if len(parts) >= 3 {
+			identity = parts[2]
+		}
+		if create, ok := body.(api.CreateVmReq); ok {
+			identity = create.VmID
+		}
+		if disk, ok := body.(model.VolumeSpec); ok {
+			identity = disk.ID
+		}
+		envelope.Key += "/" + identity
+		data, _ := json.Marshal(envelope)
+		request.Header.Set("X-Compute-Command", string(data))
+	}
+
 	for key, values := range headers {
 		request.Header[key] = append([]string{}, values...)
 	}
@@ -80,6 +99,9 @@ func (c *agentClient) create(ctx context.Context, address string, request api.Cr
 	if err != nil {
 		return nil, fmt.Errorf("agent HTTP %s: invalid response: %w", statusText(status), err)
 	}
+	if result.Failure != nil {
+		return nil, result.Failure
+	}
 	if !successful(status) || !result.OK {
 		if result.Error != nil {
 			return nil, fmt.Errorf("%s", *result.Error)
@@ -95,13 +117,17 @@ func (c *agentClient) create(ctx context.Context, address string, request api.Cr
 	}
 	return &vm, nil
 }
-func (c *agentClient) action(ctx context.Context, host model.Host, id string, action *string) error {
+func (c *agentClient) action(ctx context.Context, host model.Host, id string, action *string, options ...model.StopOptions) error {
 	method, path := "DELETE", "/api/vms/"+id
 	if action != nil {
 		method = "POST"
 		path += "/" + *action
 	}
-	response, err := c.request(ctx, method, host.Addr, path, nil, nil)
+	var body any
+	if action != nil && *action == "stop" && len(options) > 0 {
+		body = options[0]
+	}
+	response, err := c.request(ctx, method, host.Addr, path, body, nil)
 	if err != nil {
 		return err
 	}
@@ -112,6 +138,9 @@ func (c *agentClient) action(ctx context.Context, host model.Host, id string, ac
 	}
 	if successful(status) && result.OK {
 		return nil
+	}
+	if result.Failure != nil {
+		return result.Failure
 	}
 	if result.Error != nil {
 		return fmt.Errorf("%s", *result.Error)

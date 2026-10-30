@@ -74,9 +74,12 @@ func (FileStore) CloneImage(ctx context.Context, base, target string) error {
 }
 func (FileStore) RemoveImage(ctx context.Context, path string) error {
 	info, err := os.Stat(path)
-	if err != nil {
+	if os.IsNotExist(err) {
 		return nil
-	} // Rust Path::exists/is_dir also treat errors as false.
+	}
+	if err != nil {
+		return fmt.Errorf("inspect image before removal: %w", err)
+	}
 	if info.IsDir() {
 		if err := os.RemoveAll(path); err != nil {
 			return fmt.Errorf("remove dir: %w", err)
@@ -90,8 +93,14 @@ func (FileStore) RemoveImage(ctx context.Context, path string) error {
 }
 func (FileStore) ListImages(ctx context.Context, base string) ([]string, error) {
 	info, err := os.Stat(base)
-	if err != nil || !info.IsDir() {
+	if os.IsNotExist(err) {
 		return []string{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("inspect image catalog: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("image catalog is not a directory")
 	}
 	entries, err := os.ReadDir(base)
 	if err != nil {
@@ -109,7 +118,10 @@ func (FileStore) ListImages(ctx context.Context, base string) ([]string, error) 
 }
 func (FileStore) ImageExists(ctx context.Context, path string) (bool, error) {
 	_, err := os.Stat(path)
-	return err == nil, nil
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
 }
 func (FileStore) ResolveDisk(ctx context.Context, path string) (string, error) {
 	info, err := os.Lstat(path)

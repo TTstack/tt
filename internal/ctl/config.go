@@ -18,16 +18,18 @@ import (
 var help string
 
 type Config struct {
-	Listen     string
-	DataDir    string
-	APIKey     string
-	keyPresent bool
+	AuthorityFile string
+	Listen        string
+	DataDir       string
+	APIKey        string
+	keyPresent    bool
 }
 
 func Run(args []string, stdout, stderr io.Writer) int {
 	var cfg Config
 	fs := flag.NewFlagSet("tt-ctl", flag.ContinueOnError)
 	fs.StringVar(&cfg.Listen, "listen", "0.0.0.0:9200", "Listen address for the HTTP API")
+	fs.StringVar(&cfg.AuthorityFile, "authority-file", "", "Private deployment authority file outside database restore scope")
 	fs.StringVar(&cfg.DataDir, "data-dir", "/home/ttstack/ctl", "Directory for persistent state")
 	fs.StringVar(&cfg.APIKey, "api-key", os.Getenv("TT_API_KEY"), "API key for authentication")
 	fs.SetOutput(stderr)

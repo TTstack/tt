@@ -38,7 +38,7 @@ func diskReservation(spec api.VmSpec, host model.Host) (uint32, bool) {
 		}
 		disk = base
 	}
-	if known && disk < base {
+	if known && disk < base && spec.RootVolumeID == "" {
 		return 0, false
 	}
 	overhead := guestconfig.DiskMiB(spec.Engine, len(spec.GuestConfig) > 0, spec.SSH != nil)
@@ -64,17 +64,27 @@ func createRequirements(spec api.VmSpec) ([]capability.Feature, error) {
 func PlaceVM(hosts []model.Host, spec api.VmSpec, images HostImages) (Placement, error) {
 	cpu := defaultValue(spec.CPU, model.VMCPUDefault)
 	mem := spec.Engine.MemoryReservation(defaultValue(spec.Mem, model.VMMemDefault))
+	if spec.InitialStopped {
+		cpu = 0
+		mem = 0
+	}
 	requestedDisk := defaultValue(spec.Disk, spec.Engine.DefaultDisk())
-	checkImages := len(images) > 0 && spec.Engine != model.Docker
+	checkImages := len(images) > 0 && spec.Engine != model.Docker && spec.RootVolumeID == ""
 	requirements, err := createRequirements(spec)
 	if err != nil {
 		return Placement{}, err
 	}
-	supports := func(host model.Host) bool { return capability.RequireHost(host, spec.Engine, requirements) == nil }
+	supports := func(host model.Host) bool {
+		managed := spec.DurableRoot || spec.RootVolumeID != "" || len(spec.DataVolumeIDs) > 0 || spec.InitialStopped
+		return capability.RequireHost(host, spec.Engine, requirements) == nil && (!managed || host.StorageFeatures.SupportsVolumes())
+	}
 	candidates := []model.Host{}
 	for _, host := range hosts {
 		disk, ok := diskReservation(spec, host)
-		if host.State == model.HostOnline && supports(host) && slices.Contains(host.Engines, spec.Engine) && ok && host.Resource.CanFit(cpu, mem, disk) && (!checkImages || images[host.ID][spec.Image]) {
+		if spec.HostID != "" && spec.HostID != host.ID {
+			continue
+		}
+		if host.State == model.HostOnline && supports(host) && slices.Contains(host.Engines, spec.Engine) && ok && host.Resource.CanFit(cpu, mem, placementDiskCharge(spec, disk)) && (!checkImages || images[host.ID][spec.Image]) {
 			candidates = append(candidates, host)
 		}
 	}
@@ -99,7 +109,7 @@ func PlaceVM(hosts []model.Host, spec api.VmSpec, images HostImages) (Placement,
 			disk, ok := diskReservation(spec, host)
 			if !ok {
 				badDisk = true
-			} else if host.Resource.CanFit(cpu, mem, disk) {
+			} else if host.Resource.CanFit(cpu, mem, placementDiskCharge(spec, disk)) {
 				withResources++
 			}
 		}
@@ -147,9 +157,11 @@ func ScheduleEnv(hosts []model.Host, specs []api.VmSpec, images HostImages) ([]S
 			if host.ID == placement.HostID {
 				// Reservation arithmetic saturates everywhere, including the
 				// speculative pass, per the compatibility contract.
-				host.Resource.CPUUsed = model.SatAdd(host.Resource.CPUUsed, defaultValue(spec.CPU, model.VMCPUDefault))
-				host.Resource.MemUsed = model.SatAdd(host.Resource.MemUsed, spec.Engine.MemoryReservation(defaultValue(spec.Mem, model.VMMemDefault)))
-				host.Resource.DiskUsed = model.SatAdd(host.Resource.DiskUsed, placement.Disk)
+				if !spec.InitialStopped {
+					host.Resource.CPUUsed = model.SatAdd(host.Resource.CPUUsed, defaultValue(spec.CPU, model.VMCPUDefault))
+					host.Resource.MemUsed = model.SatAdd(host.Resource.MemUsed, spec.Engine.MemoryReservation(defaultValue(spec.Mem, model.VMMemDefault)))
+				}
+				host.Resource.DiskUsed = model.SatAdd(host.Resource.DiskUsed, placementDiskCharge(spec, placement.Disk))
 				host.Resource.VmCount = model.SatAdd(host.Resource.VmCount, 1)
 				break
 			}
@@ -157,4 +169,15 @@ func ScheduleEnv(hosts []model.Host, specs []api.VmSpec, images HostImages) ([]S
 		result = append(result, ScheduledVM{Spec: spec, Placement: placement})
 	}
 	return result, nil
+}
+
+func placementDiskCharge(spec api.VmSpec, logical uint32) uint32 {
+	overhead := guestconfig.DiskMiB(spec.Engine, len(spec.GuestConfig) > 0, spec.SSH != nil)
+	if spec.RootVolumeID != "" {
+		return overhead
+	}
+	if spec.DurableRoot {
+		return model.SatAdd((model.Volume{Image: spec.Image, SizeMiB: model.SatSub(logical, overhead), State: "creating"}).ReservedMiB(), overhead)
+	}
+	return logical
 }
