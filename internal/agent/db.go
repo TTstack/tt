@@ -215,6 +215,9 @@ func (d *database) initialize(ctx context.Context) error {
 			return fmt.Errorf("commit agent database initialization: %w", err)
 		}
 	}
+	if _, err := d.conn.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS checkpoint_freezes_point ON checkpoint_freezes(point)"); err != nil {
+		return fmt.Errorf("checkpoint identity index: %w", err)
+	}
 	if _, err := d.conn.ExecContext(ctx, "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;"); err != nil {
 		return fmt.Errorf("configure agent database: %w", err)
 	}

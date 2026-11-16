@@ -600,7 +600,9 @@ inspect or destroy a manifest. Checkpoint IDs carry their own source generation.
 
 A manifest captures exactly one stopped managed VM, its profile, and the complete
 root/data disk set. The agent first persists a `checkpoint_freezes` record and a
-writer fence on every participating disk. Starts, resizing, deletion, rebinding
+writer fence on every participating disk. A checkpoint id is unique on that
+agent. Thaw clears the writer fence only for disks named in that VM's freeze
+record. Starts, resizing, deletion, rebinding
 and independent snapshots fail while that fence is held. The controller captures
 the agent's exact frozen profile, allocates immutable child checkpoint identities,
 creates every child, then thaws the same freeze identity. A manifest publishes

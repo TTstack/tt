@@ -12,7 +12,7 @@ import (
 	"github.com/TTstack/tt/internal/model"
 )
 
-const checkpointSchema = `CREATE TABLE checkpoint_freezes(vm TEXT PRIMARY KEY,point TEXT NOT NULL,data TEXT NOT NULL);`
+const checkpointSchema = `CREATE TABLE checkpoint_freezes(vm TEXT PRIMARY KEY,point TEXT NOT NULL UNIQUE,data TEXT NOT NULL);`
 
 func (r *Runtime) freeze(ctx context.Context, id, point string) (model.FrozenVM, error) {
 	if model.ValidateName(point, "checkpoint") != nil {
@@ -29,6 +29,14 @@ func (r *Runtime) freeze(ctx context.Context, id, point string) (model.FrozenVM,
 			return frozen, diskError("terminal", "malformed", "malformed checkpoint freeze")
 		}
 		return frozen, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return model.FrozenVM{}, err
+	}
+	var owner string
+	err = r.db.conn.QueryRowContext(ctx, "SELECT vm FROM checkpoint_freezes WHERE point=?1", point).Scan(&owner)
+	if err == nil {
+		return model.FrozenVM{}, diskError("terminal", "fingerprint_conflict", "checkpoint identity belongs to another VM")
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return model.FrozenVM{}, err
@@ -106,6 +114,18 @@ func (r *Runtime) thaw(ctx context.Context, id, point string) error {
 	if current != point {
 		return diskError("state", "checkpoint_busy", "another checkpoint owns the VM")
 	}
+	var raw string
+	if err = r.db.conn.QueryRowContext(ctx, "SELECT data FROM checkpoint_freezes WHERE vm=?1 AND point=?2", id, point).Scan(&raw); err != nil {
+		return err
+	}
+	var frozen model.FrozenVM
+	if json.Unmarshal([]byte(raw), &frozen) != nil {
+		return diskError("terminal", "malformed", "malformed checkpoint freeze")
+	}
+	owned := map[string]bool{}
+	for _, volume := range frozen.Volumes {
+		owned[volume.ID] = true
+	}
 	volumes, err := diskList[model.Volume](ctx, r.db.conn, "volumes")
 	if err != nil {
 		return err
@@ -116,7 +136,7 @@ func (r *Runtime) thaw(ctx context.Context, id, point string) error {
 	}
 	defer tx.Rollback()
 	for _, v := range volumes {
-		if v.PendingGroup != point {
+		if !owned[v.ID] || v.PendingGroup != point {
 			continue
 		}
 		if v.PendingSnapshot != "" {

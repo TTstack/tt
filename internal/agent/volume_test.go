@@ -301,3 +301,42 @@ func TestManagedRootResizeChargesTheVolume(t *testing.T) {
 		t.Fatal(root, updated, store.resizes, before, r.resource.DiskUsed, want, err)
 	}
 }
+
+func TestCheckpointIdentityDoesNotReleaseAnotherDisk(t *testing.T) {
+	r, _, _ := managedFixture(t)
+	create := func(id, env, root string) {
+		t.Helper()
+		request := requestFixture()
+		request.VmID = id
+		request.EnvID = env
+		request.DurableRoot = true
+		request.RootVolumeID = root
+		request.InitialStopped = true
+		if _, err := r.CreateVM(managedContext(env, 1), request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	create("vm-a", "a-g1", "root-a-g1")
+	create("vm-b", "b-g1", "root-b-g1")
+	if _, err := r.freeze(managedContext("a-g1", 2), "vm-a", "recovery-g1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.freeze(managedContext("b-g1", 2), "vm-b", "recovery-g1"); err == nil {
+		t.Fatal("duplicate checkpoint identity accepted")
+	}
+	other, err := r.volume(managedContext("b-g1", 2), "root-b-g1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other.PendingGroup = "recovery-g1"
+	if err = r.saveVolume(managedContext("b-g1", 2), other); err != nil {
+		t.Fatal(err)
+	}
+	if err = r.thaw(managedContext("a-g1", 3), "vm-a", "recovery-g1"); err != nil {
+		t.Fatal(err)
+	}
+	other, err = r.volume(managedContext("b-g1", 2), "root-b-g1")
+	if err != nil || other.PendingGroup != "recovery-g1" {
+		t.Fatal("thaw released another VM disk", other, err)
+	}
+}
