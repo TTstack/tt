@@ -22,6 +22,7 @@ type Volume struct {
 	PendingSnapshot string  `json:"pending_snapshot,omitempty"`
 	PendingGroup    string  `json:"pending_group,omitempty"`
 	PendingSizeMiB  uint32  `json:"pending_size_mib,omitempty"`
+	StagingMiB      uint32  `json:"staging_mib,omitempty"`
 	Error           *string `json:"error,omitempty"`
 	CreatedAt       uint64  `json:"created_at"`
 }

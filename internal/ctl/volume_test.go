@@ -19,6 +19,19 @@ func managedHost() model.Host {
 	host.StorageFeatures = &model.StorageFeatures{ProtocolVersion: 1, Volumes: true, Snapshots: true, DataDisks: true}
 	return host
 }
+func TestArchiveStagingRemainsPendingUntilPublication(t *testing.T) {
+	ctx := context.Background()
+	db := testDB(t)
+	volume := model.Volume{ID: "disk-g1", HostID: "host", Generation: 1, SizeMiB: 10, Format: "raw", State: "creating", Phase: "archive", StagingMiB: 40, CreatedAt: 1}
+	if err := db.PutVolume(ctx, &volume); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.pendingDiskReservation(ctx, "host")
+	if err != nil || got != volume.ReservedMiB()+40 {
+		t.Fatal(got, volume.ReservedMiB(), err)
+	}
+}
+
 func TestManagedEnvironmentPlanIsAtomicAndReplayUsesOriginalIdentity(t *testing.T) {
 	ctx := command.WithContext(context.Background(), command.Envelope{Subject: "workspace-g1", Generation: 1, Token: 1, Key: "create", Fingerprint: strings.Repeat("a", 64)})
 	server := newServer(testDB(t), nil)

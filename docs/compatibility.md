@@ -655,7 +655,10 @@ File backends publish QEMU disks as qcow2; zvol backends publish raw devices.
 `{pull:{id,sha256,bytes,expanded_mib},spec:VolumeSpec}`. The compressed SHA-256,
 exact compressed length and expanded member budget bind the immutable intent.
 Root engine/image/size must match its manifest. Admission reserves both the new
-disk and private staging bytes before downloading. The URL is transported only
+disk and private staging bytes before downloading. The controller keeps the
+staging claim on the creating volume (`staging_mib`) and in its pending
+reservation until that import leaves `creating`, including across a host
+snapshot taken before the executor journal exists. The URL is transported only
 in `X-Archive-Source`, outside the semantic command fingerprint, so presigned
 access can be refreshed without changing intent. Executors accept only exact
 configured origins in `TT_ARCHIVE_SOURCES` (comma-separated host:port authorities),

@@ -60,6 +60,9 @@ func (d *DB) pendingDiskReservation(ctx context.Context, host string) (uint32, e
 	for _, v := range volumes {
 		if v.HostID == host && (v.State == "creating" || v.State == "growing") {
 			total = model.SatAdd(total, v.ReservedMiB())
+			if v.Phase == "archive" {
+				total = model.SatAdd(total, v.StagingMiB)
+			}
 		}
 	}
 	points, err := d.ListVolumeSnapshots(ctx)

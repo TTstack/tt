@@ -102,7 +102,7 @@ func (s *Server) importArchiveHTTP(w http.ResponseWriter, r *http.Request) {
 				if body.Spec.Engine == model.Qemu && chosen.Storage == model.File {
 					format = "qcow2"
 				}
-				known = &model.Volume{ID: body.Spec.ID, Owner: body.Spec.Owner, HostID: chosen.ID, Generation: body.Spec.Generation, SizeMiB: body.Spec.SizeMiB, Engine: body.Spec.Engine, Image: body.Spec.Image, Format: format, Retain: body.Spec.Retain, State: "creating", Phase: "archive", CreatedAt: s.now()}
+				known = &model.Volume{ID: body.Spec.ID, Owner: body.Spec.Owner, HostID: chosen.ID, Generation: body.Spec.Generation, SizeMiB: body.Spec.SizeMiB, Engine: body.Spec.Engine, Image: body.Spec.Image, Format: format, Retain: body.Spec.Retain, State: "creating", Phase: "archive", StagingMiB: body.Pull.ExpandedMiB, CreatedAt: s.now()}
 				chosen.Resource.DiskUsed = model.SatAdd(chosen.Resource.DiskUsed, model.SatAdd(known.ReservedMiB(), body.Pull.ExpandedMiB))
 				err = s.db.transaction(ctx, "archive volume admission", func(db *DB) error {
 					if e := db.PutVolume(ctx, known); e != nil {
