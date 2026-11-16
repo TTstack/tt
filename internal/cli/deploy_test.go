@@ -16,6 +16,24 @@ import (
 	"github.com/TTstack/tt/internal/runcmd"
 )
 
+func TestDeploySSHHostBracketsIPv6(t *testing.T) {
+	got, err := deploySSHHost("2001:db8::1")
+	if err != nil || got != "[2001:db8::1]" {
+		t.Fatal(got, err)
+	}
+	got, err = deploySSHHost("[2001:db8::1]")
+	if err != nil || got != "[2001:db8::1]" {
+		t.Fatal(got, err)
+	}
+	if _, err = deploySSHHost("name:with-colon"); err == nil {
+		t.Fatal("unbracketed colon accepted")
+	}
+	endpoint, err := (sshTarget{user: "fh", host: "2001:db8::1"}).endpoint()
+	if err != nil || endpoint != "fh@[2001:db8::1]" {
+		t.Fatal(endpoint, err)
+	}
+}
+
 func TestParseDiskGiBAndMiB(t *testing.T) {
 	for value, want := range map[string]uint32{"200G": 204800, "100g": 102400, "\"500G\"": 512000, "204800": 204800, "1024": 1024} {
 		got, err := parseDisk(value)

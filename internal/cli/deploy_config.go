@@ -239,7 +239,7 @@ func validateDeployConfig(cfg deployConfig) error {
 		if err := user(name); err != nil {
 			return err
 		}
-		if host == "" || strings.HasPrefix(host, "-") || !asciiAllowed(host, ".:-[]") {
+		if _, err := deploySSHHost(host); err != nil || !asciiAllowed(host, ".:-[]") {
 			return fmt.Errorf("invalid SSH host")
 		}
 		if _, err := netip.ParseAddrPort(listen); err != nil {

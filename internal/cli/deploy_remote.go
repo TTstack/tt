@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,26 @@ import (
 
 	"github.com/TTstack/tt/internal/model"
 )
+
+// deploySSHHost brackets an IPv6 address so ssh and scp keep the host and the
+// path apart. Any other colon is rejected.
+func deploySSHHost(host string) (string, error) {
+	if addr, err := netip.ParseAddr(host); err == nil {
+		if addr.Is6() {
+			return "[" + addr.String() + "]", nil
+		}
+		return addr.String(), nil
+	}
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		if addr, err := netip.ParseAddr(host[1 : len(host)-1]); err == nil && addr.Is6() {
+			return "[" + addr.String() + "]", nil
+		}
+	}
+	if host == "" || strings.HasPrefix(host, "-") || strings.Contains(host, ":") {
+		return "", fmt.Errorf("invalid SSH host")
+	}
+	return host, nil
+}
 
 type sshTarget struct {
 	user, host string
@@ -27,8 +48,19 @@ func redactDeploymentOutput(text string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+func (t sshTarget) endpoint() (string, error) {
+	host, err := deploySSHHost(t.host)
+	if err != nil {
+		return "", err
+	}
+	return t.user + "@" + host, nil
+}
 func (t sshTarget) exec(ctx context.Context, script string) (string, error) {
-	command := exec.Command("ssh", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-p", strconv.Itoa(int(t.port)), t.user+"@"+t.host, "sh -s")
+	endpoint, err := t.endpoint()
+	if err != nil {
+		return "", err
+	}
+	command := exec.Command("ssh", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-p", strconv.Itoa(int(t.port)), endpoint, "sh -s")
 	command.Stdin = strings.NewReader(script)
 	out, err := t.deployer.execute(ctx, command, 900*time.Second)
 	if err != nil {
@@ -40,7 +72,11 @@ func (t sshTarget) exec(ctx context.Context, script string) (string, error) {
 	return strings.ToValidUTF8(string(out.Stdout), "\ufffd"), nil
 }
 func (t sshTarget) copy(ctx context.Context, local, remote string) error {
-	command := exec.Command("scp", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-P", strconv.Itoa(int(t.port)), local, t.user+"@"+t.host+":"+remote)
+	endpoint, err := t.endpoint()
+	if err != nil {
+		return err
+	}
+	command := exec.Command("scp", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-P", strconv.Itoa(int(t.port)), local, endpoint+":"+remote)
 	out, err := t.deployer.execute(ctx, command, 0)
 	if err != nil {
 		return fmt.Errorf("scp failed: %w", err)
@@ -237,7 +273,11 @@ func (d *deployer) distributed(ctx context.Context, path string) error {
 	if controller := cfg.Controller; controller != nil {
 		parts := strings.Split(controller.Listen, ":")
 		port := parts[len(parts)-1]
-		d.app.out("[deploy] Run with TT_API_KEY set: tt config %s:%s", controller.Host, port)
+		configHost, err := deploySSHHost(controller.Host)
+		if err != nil {
+			return err
+		}
+		d.app.out("[deploy] Run with TT_API_KEY set: tt config %s:%s", configHost, port)
 	}
 	return nil
 }
