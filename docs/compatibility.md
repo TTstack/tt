@@ -440,7 +440,10 @@ Environment lifecycle clients may send `X-Compute-Command`, a JSON object with
 `subject`, positive `generation`, positive signed-64-bit `token`, `key` (1–200
 characters) and a 64-character SHA-256 `fingerprint`. The subject is the
 environment ID and must end in `-g<generation>`. Controller-to-agent calls
-forward this identity, suffixing the step key with the inner VM ID. This header
+forward this identity, suffixing the step key with the inner identity. The
+longest suffix is `/abort-volume/` plus a 128-character name and a second
+`/<id>` hop, so an agent accepts a key of at most 471 characters. The
+controller still rejects a caller key longer than 200. This header
 contains identities and digests, never bearer credentials or guest secrets.
 
 Both receivers commit the highest token and a request receipt before dispatch.

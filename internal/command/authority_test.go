@@ -71,6 +71,27 @@ func commandRequest(handler http.Handler, envelope Envelope) *httptest.ResponseR
 	handler.ServeHTTP(result, request)
 	return result
 }
+func TestForwardedCommandKeyUsesTheAgentLimit(t *testing.T) {
+	journal, closeDB := journalFixture(t, ":memory:")
+	defer closeDB()
+	handler := journal.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }), func(*http.Request) bool { return true }, func(*http.Request, []byte) (string, error) { return "subject-g1", nil })
+	base := Envelope{Subject: "subject-g1", Generation: 1, Token: 1, Fingerprint: strings.Repeat("a", 64)}
+	base.Key = strings.Repeat("k", MaxCallerKeyLen+1)
+	if result := commandRequest(handler, base); result.Code != 400 {
+		t.Fatal("caller limit accepted", result.Code, result.Body.String())
+	}
+	journal.AllowForwardedKeys()
+	base.Key = strings.Repeat("k", MaxAgentKeyLen)
+	if result := commandRequest(handler, base); result.Code != 204 {
+		t.Fatal(result.Code, result.Body.String())
+	}
+	base.Token = 2
+	base.Key = strings.Repeat("k", MaxAgentKeyLen+1)
+	if result := commandRequest(handler, base); result.Code != 400 {
+		t.Fatal("agent limit accepted", result.Code, result.Body.String())
+	}
+}
+
 func TestExternalEpochSurvivesSQLiteRollbackAndPrecedesReceiptReplay(t *testing.T) {
 	directory := t.TempDir()
 	database := filepath.Join(directory, "commands.db")

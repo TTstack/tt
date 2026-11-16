@@ -51,6 +51,7 @@ func newServer(r *Runtime, path string) *Server {
 	s.inventoryLane = make(chan struct{}, 1)
 	s.observationLane = make(chan struct{}, 2)
 	s.commandJournal = command.New(r.db.conn, &s.mutation)
+	s.commandJournal.AllowForwardedKeys()
 	return s
 }
 func (s *Server) Handler(key *string) http.Handler {

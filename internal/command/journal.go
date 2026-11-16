@@ -26,10 +26,21 @@ type Journal struct {
 	Mu        *sync.Mutex
 	busyMu    sync.Mutex
 	busy      map[string]bool
+	maxKey    int
 }
 
 func New(conn *sql.Conn, mu *sync.Mutex) *Journal {
 	return &Journal{Conn: conn, Mu: mu, busy: map[string]bool{}}
+}
+
+// AllowForwardedKeys accepts a caller key plus the controller's step suffix.
+func (s *Journal) AllowForwardedKeys() { s.maxKey = MaxAgentKeyLen }
+
+func (s *Journal) keyLimit() int {
+	if s.maxKey > 0 {
+		return s.maxKey
+	}
+	return MaxCallerKeyLen
 }
 
 var errFingerprint = errors.New("fingerprint conflict")
@@ -60,6 +71,12 @@ func (s *Journal) transaction(ctx context.Context, fn func(*sql.Tx) error) error
 
 const Schema = `CREATE TABLE IF NOT EXISTS command_fences(subject TEXT PRIMARY KEY,token INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS command_receipts(subject TEXT NOT NULL,key TEXT NOT NULL,fingerprint TEXT NOT NULL,digest TEXT NOT NULL,status INTEGER NOT NULL,response BLOB NOT NULL,PRIMARY KEY(subject,key));`
+
+// MaxCallerKeyLen is the command key a caller may send. MaxAgentKeyLen leaves
+// room for the longest controller suffix: "/abort-volume/" plus a 128-character
+// name, then the generic "/<id>" hop.
+const MaxCallerKeyLen = 200
+const MaxAgentKeyLen = MaxCallerKeyLen + len("/abort-volume/") + 128 + len("/") + 128
 
 type Envelope struct {
 	Authority   string `json:"authority,omitempty"`
@@ -115,7 +132,7 @@ func (s *Journal) Wrap(next http.Handler, supports func(*http.Request) bool, res
 		body := data
 		var cmd Envelope
 		if raw != "" {
-			if json.Unmarshal([]byte(raw), &cmd) != nil || cmd.Subject != subject || cmd.Generation == 0 || cmd.Token == 0 || cmd.Token > 1<<63-1 || cmd.Key == "" || len(cmd.Key) > 200 || len(cmd.Fingerprint) != 64 || !strings.HasSuffix(subject, "-g"+strconv.FormatUint(cmd.Generation, 10)) {
+			if json.Unmarshal([]byte(raw), &cmd) != nil || cmd.Subject != subject || cmd.Generation == 0 || cmd.Token == 0 || cmd.Token > 1<<63-1 || cmd.Key == "" || len(cmd.Key) > s.keyLimit() || len(cmd.Fingerprint) != 64 || !strings.HasSuffix(subject, "-g"+strconv.FormatUint(cmd.Generation, 10)) {
 				commandError(w, 400, "terminal", "invalid_identity")
 				return
 			}
