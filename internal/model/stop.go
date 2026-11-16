@@ -12,3 +12,13 @@ type StopOptions struct {
 func ValidStopOptions(options StopOptions) bool {
 	return !(options.Force && options.GracefulOnly) && (options.GraceSeconds == nil || (*options.GraceSeconds > 0 && *options.GraceSeconds <= 300))
 }
+
+func (v *StopOptions) UnmarshalJSON(data []byte) error {
+	type plain StopOptions
+	var next plain
+	if err := DecodeRecord(data, &next, nil, false); err != nil {
+		return err
+	}
+	*v = StopOptions(next)
+	return nil
+}

@@ -50,6 +50,36 @@ type VolumeBinding struct {
 	Role string `json:"role"`
 }
 
+func (v *VolumeSpec) UnmarshalJSON(data []byte) error {
+	type plain VolumeSpec
+	var next plain
+	if err := DecodeRecord(data, &next, []string{"id", "generation", "size_mib", "retain"}, false); err != nil {
+		return err
+	}
+	*v = VolumeSpec(next)
+	return nil
+}
+
+func (v *VolumeUpdate) UnmarshalJSON(data []byte) error {
+	type plain VolumeUpdate
+	var next plain
+	if err := DecodeRecord(data, &next, nil, false); err != nil {
+		return err
+	}
+	*v = VolumeUpdate(next)
+	return nil
+}
+
+func (v *VolumeBinding) UnmarshalJSON(data []byte) error {
+	type plain VolumeBinding
+	var next plain
+	if err := DecodeRecord(data, &next, []string{"vm_id", "role"}, false); err != nil {
+		return err
+	}
+	*v = VolumeBinding(next)
+	return nil
+}
+
 // VolumeSnapshot is an immutable checkpoint. Metadata is retained until explicit
 // deletion, including the source identity and the complete source disk shape.
 type VolumeSnapshot struct {

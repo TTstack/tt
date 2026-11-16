@@ -20,3 +20,33 @@ type ArchivePull struct {
 	Bytes       int64  `json:"bytes"`
 	ExpandedMiB uint32 `json:"expanded_mib"`
 }
+
+func (v *ArchivePull) UnmarshalJSON(data []byte) error {
+	type plain ArchivePull
+	var next plain
+	if err := DecodeRecord(data, &next, []string{"id", "sha256", "bytes", "expanded_mib"}, false); err != nil {
+		return err
+	}
+	*v = ArchivePull(next)
+	return nil
+}
+
+func (v *DiskArchive) UnmarshalJSON(data []byte) error {
+	type plain DiskArchive
+	var next plain
+	if err := DecodeRecord(data, &next, []string{"version", "format", "size_mib", "members"}, false); err != nil {
+		return err
+	}
+	*v = DiskArchive(next)
+	return nil
+}
+
+func (v *ArchiveMember) UnmarshalJSON(data []byte) error {
+	type plain ArchiveMember
+	var next plain
+	if err := DecodeRecord(data, &next, []string{"name", "bytes"}, false); err != nil {
+		return err
+	}
+	*v = ArchiveMember(next)
+	return nil
+}

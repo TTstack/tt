@@ -15,3 +15,13 @@ type VolumeSnapshotPage struct {
 type SnapshotVolumeRequest struct {
 	ID string `json:"id"`
 }
+
+func (v *SnapshotVolumeRequest) UnmarshalJSON(data []byte) error {
+	type plain SnapshotVolumeRequest
+	var next plain
+	if err := model.DecodeRecord(data, &next, []string{"id"}, false); err != nil {
+		return err
+	}
+	*v = SnapshotVolumeRequest(next)
+	return nil
+}

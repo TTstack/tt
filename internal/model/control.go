@@ -41,6 +41,27 @@ type ActivationRequest struct {
 	CatalogDigest   string `json:"catalog_digest"`
 	PlanDigest      string `json:"plan_digest"`
 }
+
+func (v *ActivationRequest) UnmarshalJSON(data []byte) error {
+	type plain ActivationRequest
+	var next plain
+	if err := DecodeRecord(data, &next, []string{"phase", "fence_id", "previous", "catalog_digest", "plan_digest"}, false); err != nil {
+		return err
+	}
+	*v = ActivationRequest(next)
+	return nil
+}
+
+func (v *EnrollmentRequest) UnmarshalJSON(data []byte) error {
+	type plain EnrollmentRequest
+	var next plain
+	if err := DecodeRecord(data, &next, []string{"host_id", "endpoint", "scope_digest", "plan_digest"}, false); err != nil {
+		return err
+	}
+	*v = EnrollmentRequest(next)
+	return nil
+}
+
 type ActivationReceipt struct {
 	QuarantineMiB    uint32            `json:"quarantine_mib"`
 	QuarantinePinned bool              `json:"quarantine_pinned"`
