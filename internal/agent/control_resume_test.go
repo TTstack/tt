@@ -21,6 +21,38 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestAgentFenceReplayFinishesInventoryPhase(t *testing.T) {
+	s, _, _ := serverFixture(t)
+	s.runtime.processDomain = "ttscope-test"
+	path := filepath.Join(t.TempDir(), "authority.json")
+	state := command.AuthorityState{Version: 1, ID: uuid.NewString(), Epoch: 1, Phase: "fenced", Key: uuid.NewString()}
+	raw, _ := json.Marshal(state)
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.commandJournal.SetAuthority(path); err != nil {
+		t.Fatal(err)
+	}
+	fence := model.FencingReceipt{Version: 1, ID: uuid.NewString(), Authority: state.ID, Epoch: 1, HostID: s.runtime.hostID, Key: "fence-key", Method: "owned_processes_stopped", ScopeDigest: strings.Repeat("c", 64), ProcessDigest: strings.Repeat("d", 64), CompletedAt: "2026-01-01T00:00:00Z"}
+	if err := s.commandJournal.Authority.CommitFence(fence); err != nil {
+		t.Fatal(err)
+	}
+	state.Phase = "fenced"
+	raw, _ = json.Marshal(state)
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	envelope := command.Envelope{Authority: state.ID, Epoch: 1, Subject: "control-" + state.ID + "-g1", Generation: 1, Token: 1 << command.EpochSequenceBits, Key: fence.Key, Fingerprint: strings.Repeat("a", 64)}
+	request := httptest.NewRequest("POST", "/api/control/fence", nil)
+	request = request.WithContext(command.WithContext(request.Context(), envelope))
+	response := httptest.NewRecorder()
+	s.fenceControlHTTP(response, request)
+	got, err := s.commandJournal.Authority.State()
+	if err != nil || response.Code != 200 || got.Phase != "inventory" {
+		t.Fatal(response.Code, response.Body.String(), got.Phase, err)
+	}
+}
+
 func TestReceiverActivationRecomputesFrozenInventoryBeforeUnlocking(t *testing.T) {
 	s, _, _ := serverFixture(t)
 	s.runtime.store = storage.FileStore{}

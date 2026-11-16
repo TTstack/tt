@@ -86,6 +86,17 @@ func (s *Server) fenceControlHTTP(w http.ResponseWriter, request *http.Request) 
 		return nil
 	}
 	if existing, err := authority.FenceReceipt(); err == nil && existing != nil && existing.Key == envelope.Key && existing.HostID == s.runtime.hostID {
+		state, err := authority.State()
+		if err != nil {
+			failure(w, err)
+			return
+		}
+		if state.Phase == "fenced" {
+			if err = authority.CommitFence(*existing); err != nil {
+				failure(w, diskError("unknown", "fence_unconfirmed", "external fencing receipt could not be committed"))
+				return
+			}
+		}
 		api.WriteJSON(w, 200, api.Success(*existing))
 		return
 	}

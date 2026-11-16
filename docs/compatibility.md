@@ -775,7 +775,9 @@ External `<authority-file>.activation-reads`, `-mutations` and `-gc` documents
 contain version, UUID, authority/epoch, epoch decision key, receiver, command key,
 method, scope digest, exact request and completion timestamp. Receipts publish
 before the phase file. A retry can finish an interrupted phase write using the
-same immutable receipt. Complete current-epoch history is returned in `activations`.
+same immutable receipt. The fence file is the same kind of receipt: a retry
+with the same key, while the phase is still `fenced`, finishes the transition
+to `inventory` instead of reporting that the fence already completed. Complete current-epoch history is returned in `activations`.
 Mutation admission requires the entire matching external phase chain as well as
 the epoch file; SQLite loss or a serving-mode hint cannot manufacture it. DELETE
 and unpublished-import abort require the separate GC gate.

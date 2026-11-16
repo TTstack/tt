@@ -31,6 +31,12 @@ func (s *Server) fenceControlHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if receipt, err := authority.FenceReceipt(); err == nil && receipt != nil && receipt.Key == envelope.Key && receipt.Method == "controller_commands_drained" {
+		if state.Phase == "fenced" {
+			if err = authority.CommitFence(*receipt); err != nil {
+				reply(w, model.Unit{}, internal(err), 200)
+				return
+			}
+		}
 		reply(w, *receipt, nil, 200)
 		return
 	}
