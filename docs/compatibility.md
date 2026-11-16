@@ -555,7 +555,11 @@ A disk becomes available only after its journaled initialization and durability
 barrier. Retrying a creation may discard an owned *unpublished* stage; an already
 available disk is never silently recreated, even if its bytes later disappear.
 Growth is offline and grow-only, with the larger reservation committed before
-I/O. A pending checkpoint fences starts, attachments and growth until the
+I/O. A managed root's VM resource update grows that volume, so the volume claim
+changes before the bytes do; the VM row does not keep a second copy of the
+root reservation. A classified resize refusal keeps its class. `state` remains
+409, and the controller drops a pending target only for that definitive
+refusal. A pending checkpoint fences starts, attachments and growth until the
 checkpoint settles. File checkpoints are independent private copies; zvol
 checkpoints retain ZFS ancestry. Every restored Firecracker dataset rewrites its
 root-device symlink to its own cloned child, preventing source-device aliasing.

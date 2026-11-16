@@ -204,10 +204,28 @@ func (r *Runtime) ResizeVM(ctx context.Context, id string, target model.VmResour
 		return nil, fmt.Errorf("disk capacity overflow")
 	}
 	disk := target.Disk + overhead
+	var root *model.Volume
+	if vm.Options.RootManaged {
+		if vm.Options.RootVolumeID == "" {
+			return nil, diskError("state", "root_detached", "attach a root volume before resizing")
+		}
+		root, err = r.volume(ctx, vm.Options.RootVolumeID)
+		if err != nil {
+			return nil, err
+		}
+		if target.Disk < root.SizeMiB {
+			return nil, fmt.Errorf("disk shrinking is not supported")
+		}
+	}
 	if err := r.recount(ctx); err != nil {
 		return nil, err
 	}
-	if !r.resource.CanFit(target.CPU, vm.Engine.MemoryReservation(target.Mem), model.SatSub(disk, vm.ReservedDisk())) {
+	diskCharge := model.SatSub(disk, vm.ReservedDisk())
+	if root != nil {
+		next := model.Volume{Image: root.Image, SizeMiB: target.Disk, State: root.State}
+		diskCharge = model.SatSub(next.ReservedMiB(), root.ReservedMiB())
+	}
+	if !r.resource.CanFit(target.CPU, vm.Engine.MemoryReservation(target.Mem), diskCharge) {
 		return nil, fmt.Errorf("insufficient resources for resource update")
 	}
 	if vm.PendingResources == nil && vm.CPU == target.CPU && vm.Mem == target.Mem && vm.Options.RequestedDisk == target.Disk && vm.Disk == disk {
@@ -225,7 +243,11 @@ func (r *Runtime) ResizeVM(ctx context.Context, id string, target model.VmResour
 	if err := r.recount(ctx); err != nil {
 		return nil, err
 	}
-	if grow {
+	if root != nil {
+		if target.Disk != root.SizeMiB || root.State == "growing" {
+			_, err = r.UpdateVolume(ctx, root.ID, model.VolumeUpdate{SizeMiB: &target.Disk})
+		}
+	} else if grow {
 		if vm.Engine == model.Qemu {
 			err = r.store.ResizeDisk(ctx, path, target.Disk)
 		} else {

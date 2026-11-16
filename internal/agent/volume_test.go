@@ -275,3 +275,29 @@ func TestCheckpointFreezeFencesStartsGrowthAndIndependentSnapshots(t *testing.T)
 		t.Fatal("completed checkpoint retained writer fence", err)
 	}
 }
+
+func TestManagedRootResizeChargesTheVolume(t *testing.T) {
+	r, _, store := managedFixture(t)
+	request := requestFixture()
+	request.EnvID = "workspace-g1"
+	request.DurableRoot = true
+	request.RootVolumeID = "root-g1"
+	request.InitialStopped = true
+	request.Disk = 128
+	ctx := managedContext(request.EnvID, 1)
+	vm, err := r.CreateVM(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := r.resource.DiskUsed
+	resized := store.resizes
+	updated, err := r.ResizeVM(ctx, vm.ID, model.VmResources{CPU: 1, Mem: 128, Disk: 256})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := r.volume(ctx, request.RootVolumeID)
+	want := (model.Volume{Image: request.Image, SizeMiB: 256, State: "ready"}).ReservedMiB()
+	if err != nil || root.SizeMiB != 256 || root.State != "attached" || updated.Disk != 256 || updated.PendingResources != nil || store.resizes != resized+1 || r.resource.DiskUsed != want || r.resource.DiskUsed <= before {
+		t.Fatal(root, updated, store.resizes, before, r.resource.DiskUsed, want, err)
+	}
+}
