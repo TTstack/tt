@@ -71,6 +71,32 @@ func TestTAPRenameRetainsCharacterDeviceRecord(t *testing.T) {
 	}
 }
 
+func TestCreateTapDiscardsUnrecordedDevice(t *testing.T) {
+	n := New()
+	n.runDir = t.TempDir()
+	var commands []string
+	n.execute = func(ctx context.Context, cmd *exec.Cmd, d time.Duration) (runcmd.Result, error) {
+		command := strings.Join(cmd.Args, " ")
+		commands = append(commands, command)
+		switch command {
+		case "ifconfig -l":
+			return runcmd.Result{Stdout: []byte("lo0")}, nil
+		case "ifconfig tap create":
+			return runcmd.Result{Stdout: []byte("tap7\n")}, nil
+		case "ifconfig tap7 description ttstack:vm1":
+			return runcmd.Result{}, fmt.Errorf("description failed")
+		default:
+			return runcmd.Result{}, nil
+		}
+	}
+	if err := n.CreateTap(context.Background(), "vm1", "10.10.0.2"); err == nil || !strings.Contains(strings.Join(commands, "\n"), "ifconfig tap7 destroy") {
+		t.Fatal(err, commands)
+	}
+	if _, err := os.Stat(n.tapRecord("vm1")); !os.IsNotExist(err) {
+		t.Fatal("unrecorded tap was published", err)
+	}
+}
+
 func TestPFOnlyReplacesOwnedChildAnchors(t *testing.T) {
 	n := New()
 	var flushed []string

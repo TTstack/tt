@@ -109,17 +109,20 @@ func (n *Network) CreateTap(ctx context.Context, id, ip string) error {
 				return err
 			}
 			device = strings.TrimSpace(created)
-			if _, err := n.run(ctx, "ifconfig", device, "description", "ttstack:"+id); err != nil {
-				return err
-			}
-			if err := os.MkdirAll(n.runDir, 0777); err != nil {
-				return err
-			}
-			if err := n.writeFile(n.tapRecord(id), []byte(device), 0666); err != nil {
+			discard := func(cause error) error {
 				if _, cleanup := n.run(ctx, "ifconfig", device, "destroy"); cleanup != nil {
 					return cleanup
 				}
-				return err
+				return cause
+			}
+			if _, err := n.run(ctx, "ifconfig", device, "description", "ttstack:"+id); err != nil {
+				return discard(err)
+			}
+			if err := os.MkdirAll(n.runDir, 0777); err != nil {
+				return discard(err)
+			}
+			if err := n.writeFile(n.tapRecord(id), []byte(device), 0666); err != nil {
+				return discard(err)
 			}
 		}
 		if _, err := n.run(ctx, "ifconfig", device, "name", tap); err != nil {
