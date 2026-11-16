@@ -244,12 +244,19 @@ func (s *Server) resizeVM(w http.ResponseWriter, request *http.Request) {
 		api.WriteJSON(w, 200, api.Success(*vm))
 		return
 	}
+	var typed *api.BoundaryError
+	if errors.As(err, &typed) {
+		failure(w, err)
+		return
+	}
 	message := err.Error()
-	status := 500
-	if strings.Contains(message, "insufficient resources") || strings.Contains(message, "require a confirmed stopped VM") || strings.Contains(message, "retry the recorded target first") {
-		status = 409
-	} else if strings.Contains(message, "shrinking") || strings.Contains(message, "must be > 0") || strings.Contains(message, "capability ") || strings.Contains(message, "overflow") {
-		status = 400
+	status := backup.ErrorStatus(message)
+	if status == 500 {
+		if strings.Contains(message, "insufficient resources") || strings.Contains(message, "require a confirmed stopped VM") || strings.Contains(message, "retry the recorded target first") {
+			status = 409
+		} else if strings.Contains(message, "shrinking") || strings.Contains(message, "must be > 0") || strings.Contains(message, "capability ") || strings.Contains(message, "overflow") {
+			status = 400
+		}
 	}
 	api.WriteJSON(w, status, api.Failure[model.Unit](message))
 }
